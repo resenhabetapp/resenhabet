@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brasil Mode (Tema Claro) */
+    --color-surface: 255 255 255;
+    --color-surface-container-low: 240 247 243;
+    --color-surface-container-default: 225 239 229;
+    --color-surface-container-highest: 204 227 210;
+    
+    --color-primary: 0 155 58;
+    --color-on-surface: 10 36 20;
+    --color-on-primary: 255 255 255;
+    --color-outline-variant-raw: 0 155 58;
+    --color-outline-variant: rgba(0, 155, 58, 0.12);
+    
+    --color-shadow-neon: 0 0 20px rgba(0, 39, 118, 0.15);
+    --color-shadow-floating: 0 20px 40px rgba(0, 39, 118, 0.1);
+    
+    --loader-shadow: rgba(0, 155, 58, 0.2);
+    --avatar-shadow: rgba(0, 155, 58, 0.15);
+    --fab-hover-shadow: rgba(0, 39, 118, 0.4);
+  }
+
+  .dark {
+    /* Arena Mode (Tema Escuro) */
+    --color-surface: 4 20 10;
+    --color-surface-container-low: 8 33 18;
+    --color-surface-container-default: 13 51 28;
+    --color-surface-container-highest: 20 77 43;
+    
+    --color-primary: 255 223 0;
+    --color-on-surface: 248 249 250;
+    --color-on-primary: 4 20 10;
+    --color-outline-variant-raw: 0 156 59;
+    --color-outline-variant: rgba(0, 156, 59, 0.15);
+    
+    --color-shadow-neon: 0 0 20px rgba(255, 223, 0, 0.15);
+    --color-shadow-floating: 0 20px 40px rgba(0, 0, 0, 0.5);
+    
+    --loader-shadow: rgba(255, 223, 0, 0.2);
+    --avatar-shadow: rgba(255, 223, 0, 0.15);
+    --fab-hover-shadow: rgba(255, 223, 0, 0.4);
+  }
+
+  body {
+    @apply bg-surface text-on-surface font-body antialiased selection:bg-primary selection:text-on-primary transition-colors duration-200;
+  }
+
+  /* Remove as setinhas feias de inputs numéricos */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
