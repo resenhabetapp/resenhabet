@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "lint:staged": "lint-staged",
+    "test": "echo \"Nenhum teste definido ainda\" && exit 0",
+    "security:scan": "npm audit --audit-level=high",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -31,6 +34,22 @@
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "npm run lint:staged && npm run test",
+      "pre-push": "npm run security:scan"
+    }
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx,jsx}": [
+      "eslint --fix"
+    ],
+    "*.{css,scss,html}": [
+      "prettier --write"
+    ]
   }
 }
