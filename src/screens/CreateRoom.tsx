@@ -14,6 +14,7 @@ export default function CreateRoom() {
   const [deadline, setDeadline] = useState(''); // datetime-local
   const [regraEmpate, setRegraEmpate] = useState('acumular'); // acumular | banca
   const [regraBancaComissionada, setRegraBancaComissionada] = useState(false);
+  const [comissaoPorcentagem, setComissaoPorcentagem] = useState(10); // default 10%
   const [fieldErrors, setFieldErrors] = useState<{
     homeTeam?: string;
     awayTeam?: string;
@@ -226,6 +227,7 @@ export default function CreateRoom() {
         horario_limite: deadline ? deadline : null,
         regra_empate: regraEmpate,
         regra_banca_comissionada: regraBancaComissionada,
+        comissao_porcentagem: regraBancaComissionada ? comissaoPorcentagem : 0,
         pix_key: pixKeyType === 'random' ? pixKey.replace(/-/g, '').trim() : pixKey.trim(),
         pix_key_type: pixKeyType,
         sport: sport,
@@ -616,14 +618,50 @@ export default function CreateRoom() {
             <option value="banca">Banca (vai para a casa)</option>
           </select>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={regraBancaComissionada}
-            onChange={() => setRegraBancaComissionada(!regraBancaComissionada)}
-            disabled={loading}
-          />
-          <label className="text-xs font-bold text-on-surface/60">Regra Banca Comissionada</label>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-on-surface">Banca Comissionada</span>
+              <span className="text-[11px] text-on-surface/50">Cobrar comissão do pote acumulado</span>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => setRegraBancaComissionada(!regraBancaComissionada)}
+              disabled={loading}
+              className={`w-14 h-8 border rounded-full relative p-1 flex items-center cursor-pointer select-none outline-none focus:outline-none transition-all ${
+                regraBancaComissionada 
+                  ? 'bg-primary/20 border-primary' 
+                  : 'bg-surface-container-highest border-outline-variant'
+              }`}
+              aria-label="Toggle Banca Comissionada"
+            >
+              {/* Sliding Knob */}
+              <div
+                className={`w-6 h-6 rounded-full bg-primary shadow transform transition-transform duration-300 ease-in-out ${
+                  regraBancaComissionada ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+          
+          {regraBancaComissionada && (
+            <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+              <label className="text-xs font-bold text-on-surface/60 uppercase tracking-wider">Porcentagem da Comissão</label>
+              <select
+                value={comissaoPorcentagem}
+                onChange={(e) => setComissaoPorcentagem(Number(e.target.value))}
+                disabled={loading}
+                className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface focus:outline-none focus:border-primary focus:border-2 disabled:opacity-50"
+              >
+                {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => (
+                  <option key={val} value={val}>
+                    {val}%
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Sua Chave Pix para Recebimento with dynamic mask/validation */}

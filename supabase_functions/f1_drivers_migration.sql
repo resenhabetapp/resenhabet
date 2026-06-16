@@ -13,7 +13,9 @@ ALTER TABLE public.f1_drivers ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Permitir leitura pública de pilotos" ON public.f1_drivers;
 CREATE POLICY "Permitir leitura pública de pilotos" ON public.f1_drivers
-    FOR SELECT TO public USING (true);
+    FOR SELECT TO anon, authenticated USING (true);
+
+GRANT SELECT ON public.f1_drivers TO anon, authenticated;
 
 -- Limpar e popular grid inicial de pilotos
 TRUNCATE TABLE public.f1_drivers;

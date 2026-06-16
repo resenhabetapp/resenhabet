@@ -23,11 +23,14 @@ DECLARE
     v_prize_per_winner NUMERIC(10,2);
     v_regra_empate TEXT;
     v_regra_banca_comissionada BOOLEAN;
+    v_comissao_porcentagem INTEGER;
+    v_pix_key TEXT;
+    v_commission NUMERIC(10,2) DEFAULT 0.00;
     v_line NUMERIC;
 BEGIN
     -- Obter dados da sala
-    SELECT sport, bet_type, valor_da_cota, regra_empate, regra_banca_comissionada
-    INTO v_sport, v_bet_type, v_cota, v_regra_empate, v_regra_banca_comissionada
+    SELECT sport, bet_type, valor_da_cota, regra_empate, regra_banca_comissionada, comissao_porcentagem, pix_key
+    INTO v_sport, v_bet_type, v_cota, v_regra_empate, v_regra_banca_comissionada, v_comissao_porcentagem, v_pix_key
     FROM rooms 
     WHERE rooms.id = p_room_id;
 
@@ -124,8 +127,20 @@ BEGIN
 
     -- Calcular o prêmio por vencedor
     IF v_winners_count > 0 THEN
+        -- Aplicar comissão se a regra estiver ativa
+        IF v_regra_banca_comissionada AND v_comissao_porcentagem > 0 THEN
+            v_commission := ROUND(v_total_pool * (v_comissao_porcentagem::numeric / 100.0), 2);
+            v_total_pool := v_total_pool - v_commission;
+        END IF;
+
         v_prize_per_winner := ROUND((v_total_pool / v_winners_count)::numeric, 2);
         
+        -- Retornar comissão do organizador como a primeira linha se aplicável
+        IF v_commission > 0 THEN
+            RETURN QUERY 
+            SELECT 'Comissão do Organizador'::TEXT, v_pix_key, v_commission;
+        END IF;
+
         RETURN QUERY 
         SELECT bettor_name, bettor_pix_key, v_prize_per_winner
         FROM temp_winners;
