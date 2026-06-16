@@ -19,6 +19,8 @@ interface Room {
   sport?: string;
   bet_type?: string;
   event_data?: any;
+  regra_banca_comissionada?: boolean;
+  comissao_porcentagem?: number;
 }
 
 interface Guess {
@@ -157,15 +159,29 @@ export default function Report() {
         });
 
         const totalConfirmed = (guessesData || []).filter((g) => g.payment_status === 'confirmed').length;
-        const totalPool = totalConfirmed * roomData.valor_da_cota;
+        let totalPool = totalConfirmed * roomData.valor_da_cota;
 
         if (correctGuesses.length > 0) {
+          const mappedWinners: Winner[] = [];
+          
+          if (roomData.regra_banca_comissionada && roomData.comissao_porcentagem && roomData.comissao_porcentagem > 0) {
+            const commission = Math.round(totalPool * (roomData.comissao_porcentagem / 100) * 100) / 100;
+            totalPool = totalPool - commission;
+            mappedWinners.push({
+              winner_name: 'Comissão do Organizador',
+              winner_pix_key: roomData.pix_key,
+              prize_value: commission,
+            });
+          }
+
           const prizePerWinner = Math.round((totalPool / correctGuesses.length) * 100) / 100;
-          const mappedWinners = correctGuesses.map((g) => ({
-            winner_name: g.bettor_name,
-            winner_pix_key: g.bettor_pix_key,
-            prize_value: prizePerWinner,
-          }));
+          correctGuesses.forEach((g) => {
+            mappedWinners.push({
+              winner_name: g.bettor_name,
+              winner_pix_key: g.bettor_pix_key,
+              prize_value: prizePerWinner,
+            });
+          });
           setWinners(mappedWinners);
         }
       }
@@ -361,6 +377,9 @@ export default function Report() {
 
   const isSettled = room?.status === 'settled';
 
+  const actualWinners = winners.filter((w) => w.winner_name !== 'Comissão do Organizador');
+  const prizePerWinner = actualWinners.length > 0 ? actualWinners[0].prize_value : 0;
+
   return (
     <div className="px-4 py-6 flex flex-col gap-6">
       <div>
@@ -431,6 +450,24 @@ export default function Report() {
                 <span className="text-sm text-on-surface/60">Pote total (Confirmado)</span>
                 <span className="font-display font-bold text-primary">R$ {totalPool.toFixed(2).replace('.', ',')}</span>
               </div>
+              
+              {room.regra_banca_comissionada && room.comissao_porcentagem !== undefined && room.comissao_porcentagem > 0 && (
+                <>
+                  <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10 text-xs">
+                    <span className="text-on-surface/50">Comissão da Banca ({room.comissao_porcentagem}%)</span>
+                    <span className="font-semibold text-on-surface/70">
+                      R$ {(totalPool * (room.comissao_porcentagem / 100)).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10 text-xs">
+                    <span className="text-on-surface/50">Pote Líquido para Rateio</span>
+                    <span className="font-semibold text-primary">
+                      R$ {(totalPool * (1 - room.comissao_porcentagem / 100)).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10">
                 <span className="text-sm text-on-surface/60">Total de Palpites</span>
                 <span className="font-display font-bold text-on-surface">{guesses.length} palpites ({totalConfirmed} pagos)</span>
@@ -438,7 +475,7 @@ export default function Report() {
               {isSettled && (
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm text-on-surface/60">Acertadores</span>
-                  <span className="font-display font-bold text-primary">{winners.length} acertadores</span>
+                  <span className="font-display font-bold text-primary">{actualWinners.length} acertadores</span>
                 </div>
               )}
             </div>
@@ -447,7 +484,7 @@ export default function Report() {
             {isSettled ? (
               <div className="flex flex-col gap-3">
                 <h3 className="font-display text-lg font-bold text-on-surface">
-                  Rateio ({winners.length > 0 ? `R$ ${(totalPool / winners.length).toFixed(2).replace('.', ',')} por acertador` : 'Sem acertadores'})
+                  Rateio ({actualWinners.length > 0 ? `R$ ${prizePerWinner.toFixed(2).replace('.', ',')} por acertador` : 'Sem acertadores'})
                 </h3>
                 
                 {winners.length === 0 ? (
