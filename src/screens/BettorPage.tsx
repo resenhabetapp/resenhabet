@@ -13,6 +13,9 @@ interface Room {
   pix_key: string;
   pix_key_type: string;
   status: string;
+  sport?: string;
+  bet_type?: string;
+  event_data?: any;
 }
 
 export default function BettorPage() {
@@ -25,13 +28,21 @@ export default function BettorPage() {
 
   // Form states
   const [bettorName, setBettorName] = useState('');
-  const [homeScore, setHomeScore] = useState('');
-  const [awayScore, setAwayScore] = useState('');
   const [bettorPixKey, setBettorPixKey] = useState('');
   const [pixKeyType, setPixKeyType] = useState('email'); // email | cpf | phone
   const [emailError, setEmailError] = useState<string | null>(null);
-
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Sport-specific form states
+  const [homeScore, setHomeScore] = useState('');
+  const [awayScore, setAwayScore] = useState('');
+  const [selectedWinner, setSelectedWinner] = useState(''); // home | draw | away | player_a | player_b
+  const [selectedSetsScore, setSelectedSetsScore] = useState(''); // e.g. 2x1, 3x0
+  const [selectedOverUnder, setSelectedOverUnder] = useState(''); // over | under
+  const [selectedF1Winner, setSelectedF1Winner] = useState('');
+  const [podium1, setPodium1] = useState('');
+  const [podium2, setPodium2] = useState('');
+  const [podium3, setPodium3] = useState('');
 
   // Result state
   const [successGuess, setSuccessGuess] = useState<any | null>(null);
@@ -76,19 +87,115 @@ export default function BettorPage() {
     setSubmitLoading(true);
     setError(null);
 
-    if (!bettorName.trim() || !homeScore.trim() || !awayScore.trim() || !bettorPixKey.trim()) {
-      setError('Por favor, preencha todos os campos.');
+    if (!bettorName.trim() || !bettorPixKey.trim()) {
+      setError('Por favor, preencha todos os campos obrigatórios.');
       setSubmitLoading(false);
       return;
     }
 
-    const homeVal = parseInt(homeScore);
-    const awayVal = parseInt(awayScore);
+    let guessData: any = {};
+    let homeVal: number | null = null;
+    let awayVal: number | null = null;
 
-    if (isNaN(homeVal) || homeVal < 0 || isNaN(awayVal) || awayVal < 0) {
-      setError('Placar inválido.');
-      setSubmitLoading(false);
-      return;
+    // Validate based on sport and bet type
+    const sport = room?.sport || 'Futebol';
+    const betType = room?.bet_type || 'placar_exato';
+
+    if (sport === 'Futebol') {
+      if (betType === 'placar_exato') {
+        homeVal = parseInt(homeScore);
+        awayVal = parseInt(awayScore);
+        if (isNaN(homeVal) || homeVal < 0 || isNaN(awayVal) || awayVal < 0) {
+          setError('Por favor, informe um placar válido.');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { home_score: homeVal, away_score: awayVal };
+      } else if (betType === 'resultado_final') {
+        if (!selectedWinner) {
+          setError('Selecione o vencedor do jogo.');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { winner: selectedWinner };
+      }
+    } else if (sport === 'Tênis') {
+      if (betType === 'vencedor') {
+        if (!selectedWinner) {
+          setError('Selecione o jogador vencedor.');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { winner: selectedWinner };
+      } else if (betType === 'placar_sets') {
+        if (!selectedSetsScore) {
+          setError('Selecione o placar de sets do jogo.');
+          setSubmitLoading(false);
+          return;
+        }
+        const isPlayerAWinner = selectedSetsScore.startsWith('2') || selectedSetsScore.startsWith('3');
+        guessData = {
+          winner: isPlayerAWinner ? 'player_a' : 'player_b',
+          sets_score: selectedSetsScore
+        };
+      }
+    } else if (sport === 'Basquete') {
+      if (betType === 'vencedor') {
+        if (!selectedWinner) {
+          setError('Selecione o vencedor do confronto.');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { winner: selectedWinner };
+      } else if (betType === 'pontos_total') {
+        if (!selectedOverUnder) {
+          setError('Selecione Mais de ou Menos de pontos (Over/Under).');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { over_under: selectedOverUnder };
+      }
+    } else if (sport === 'Vôlei') {
+      if (betType === 'vencedor') {
+        if (!selectedWinner) {
+          setError('Selecione o time vencedor.');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { winner: selectedWinner };
+      } else if (betType === 'placar_sets') {
+        if (!selectedSetsScore) {
+          setError('Selecione o placar de sets.');
+          setSubmitLoading(false);
+          return;
+        }
+        const isHomeWinner = selectedSetsScore.startsWith('3');
+        guessData = {
+          winner: isHomeWinner ? 'home' : 'away',
+          sets_score: selectedSetsScore
+        };
+      }
+    } else if (sport === 'Fórmula 1') {
+      if (betType === 'vencedor_corrida') {
+        if (!selectedF1Winner) {
+          setError('Selecione o piloto vencedor.');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { winner: selectedF1Winner };
+      } else if (betType === 'podio') {
+        if (!podium1 || !podium2 || !podium3) {
+          setError('Selecione os 3 pilotos do pódio.');
+          setSubmitLoading(false);
+          return;
+        }
+        if (podium1 === podium2 || podium1 === podium3 || podium2 === podium3) {
+          setError('Os pilotos do pódio não podem se repetir.');
+          setSubmitLoading(false);
+          return;
+        }
+        guessData = { podium: [podium1, podium2, podium3] };
+      }
     }
 
     try {
@@ -98,30 +205,84 @@ export default function BettorPage() {
         p_bettor_pix_key: bettorPixKey.trim(),
         p_home_score: homeVal,
         p_away_score: awayVal,
+        p_guess_data: guessData,
       });
 
       if (rpcError) {
         setError(rpcError.message);
       } else {
-        const guessData = Array.isArray(data) ? data[0] : data;
-        if (guessData?.id) {
-          localStorage.setItem('pending_guess_id', guessData.id);
-          // Se já estiver logado, vincula imediatamente
+        const guessDataRes = Array.isArray(data) ? data[0] : data;
+        if (guessDataRes?.id) {
+          localStorage.setItem('pending_guess_id', guessDataRes.id);
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             await supabase
               .from('guesses')
               .update({ user_id: session.user.id })
-              .eq('id', guessData.id);
+              .eq('id', guessDataRes.id);
             localStorage.removeItem('pending_guess_id');
           }
         }
-        setSuccessGuess(guessData);
+        setSuccessGuess(guessDataRes);
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao submeter palpite.');
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const renderGuessSummary = () => {
+    if (!successGuess || !room) return null;
+    const sport = room.sport || 'Futebol';
+    const betType = room.bet_type || 'placar_exato';
+    const g = successGuess.guess_data || {};
+
+    if (sport === 'Futebol') {
+      if (betType === 'placar_exato') {
+        return `Seu Placar: ${successGuess.home_score} x ${successGuess.away_score}`;
+      } else {
+        return `Seu Palpite: Vencedor - ${g.winner === 'home' ? room.home_team : g.winner === 'draw' ? 'Empate' : room.away_team}`;
+      }
+    } else if (sport === 'Tênis') {
+      const playerA = room.event_data?.player_a || room.home_team;
+      const playerB = room.event_data?.player_b || room.away_team;
+      if (betType === 'vencedor') {
+        return `Seu Palpite: Vencedor - ${g.winner === 'player_a' ? playerA : playerB}`;
+      } else {
+        return `Seu Palpite: Placar de Sets - ${g.sets_score}`;
+      }
+    } else if (sport === 'Basquete') {
+      if (betType === 'vencedor') {
+        return `Seu Palpite: Vencedor - ${g.winner === 'home' ? room.home_team : room.away_team}`;
+      } else {
+        const line = room.event_data?.line || '210.5';
+        return `Seu Palpite: Total de Pontos - ${g.over_under === 'over' ? 'Mais de' : 'Menos de'} ${line}`;
+      }
+    } else if (sport === 'Vôlei') {
+      if (betType === 'vencedor') {
+        return `Seu Palpite: Vencedor - ${g.winner === 'home' ? room.home_team : room.away_team}`;
+      } else {
+        return `Seu Palpite: Placar de Sets - ${g.sets_score}`;
+      }
+    } else if (sport === 'Fórmula 1') {
+      if (betType === 'vencedor_corrida') {
+        return `Seu Palpite: Vencedor - ${g.winner}`;
+      } else {
+        const pod = g.podium || [];
+        return `Seu Pódio: 1º: ${pod[0] || '-'} | 2º: ${pod[1] || '-'} | 3º: ${pod[2] || '-'}`;
+      }
+    }
+    return '';
+  };
+
+  const getSportIcon = (s: string) => {
+    switch (s) {
+      case 'Tênis': return '🎾';
+      case 'Basquete': return '🏀';
+      case 'Vôlei': return '🏐';
+      case 'Fórmula 1': return '🏎️';
+      default: return '⚽';
     }
   };
 
@@ -162,10 +323,10 @@ export default function BettorPage() {
           
           <div className="text-center py-4 bg-surface-container-low rounded-xl">
             <span className="text-xs text-primary font-bold tracking-widest uppercase">Palpite Registrado!</span>
-            <h1 className="font-display text-3xl font-bold text-on-surface mt-2">
-              {room.home_team} × {room.away_team}
+            <h1 className="font-display text-2xl font-bold text-on-surface mt-2 px-2">
+              {room.sport === 'Fórmula 1' ? `${room.event_data?.gp_name || room.home_team}` : `${room.home_team} × ${room.away_team}`}
             </h1>
-            <p className="text-sm text-on-surface/60 mt-1">Seu Placar: {successGuess.home_score} x {successGuess.away_score}</p>
+            <p className="text-sm text-on-surface/60 mt-1 font-semibold text-primary">{renderGuessSummary()}</p>
           </div>
 
           <div className="bg-surface-container p-6 rounded-xl border border-outline-variant text-center flex flex-col gap-3">
@@ -237,6 +398,13 @@ export default function BettorPage() {
               setSuccessGuess(null);
               setHomeScore('');
               setAwayScore('');
+              setSelectedWinner('');
+              setSelectedSetsScore('');
+              setSelectedOverUnder('');
+              setSelectedF1Winner('');
+              setPodium1('');
+              setPodium2('');
+              setPodium3('');
             }}
             className="w-full h-12 bg-surface-container-highest hover:bg-outline-variant-raw/20 text-on-surface font-display font-bold rounded-lg transition-colors"
           >
@@ -246,6 +414,9 @@ export default function BettorPage() {
       </div>
     );
   }
+
+  const sport = room?.sport || 'Futebol';
+  const betType = room?.bet_type || 'placar_exato';
 
   // Normal guess form screen
   return (
@@ -258,9 +429,12 @@ export default function BettorPage() {
           </div>
 
           <div className="text-center py-4 bg-surface-container-low rounded-xl">
-            <span className="text-xs text-primary font-bold tracking-widest uppercase">Você foi convidado para palpitar</span>
-            <h1 className="font-display text-3xl font-bold text-on-surface mt-2">
-              {room.home_team} × {room.away_team}
+            <span className="text-xs text-primary font-bold tracking-widest uppercase flex items-center justify-center gap-1">
+              <span>{getSportIcon(sport)}</span>
+              <span>Você foi convidado para palpitar ({sport})</span>
+            </span>
+            <h1 className="font-display text-2xl font-bold text-on-surface mt-2 px-2">
+              {sport === 'Fórmula 1' ? `${room.event_data?.gp_name || room.home_team}` : `${room.home_team} × ${room.away_team}`}
             </h1>
             <p className="text-xs text-on-surface/40 mt-1 uppercase tracking-wider">Criador: {room.title}</p>
           </div>
@@ -292,83 +466,404 @@ export default function BettorPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider text-center">{room.home_team}</label>
-                <input
-                  type="number"
-                  placeholder="Placar"
-                  value={homeScore}
-                  onChange={(e) => setHomeScore(e.target.value)}
-                  disabled={submitLoading}
-                  className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-center font-display text-lg text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary disabled:opacity-50"
-                />
+            {/* Dynamic Betting Inputs Section */}
+            
+            {/* 1. Futebol / Placar Exato */}
+            {sport === 'Futebol' && betType === 'placar_exato' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider text-center">{room.home_team}</label>
+                  <input
+                    type="number"
+                    placeholder="Placar"
+                    value={homeScore}
+                    onChange={(e) => setHomeScore(e.target.value)}
+                    disabled={submitLoading}
+                    className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-center font-display text-lg text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary disabled:opacity-50"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider text-center">{room.away_team}</label>
+                  <input
+                    type="number"
+                    placeholder="Placar"
+                    value={awayScore}
+                    onChange={(e) => setAwayScore(e.target.value)}
+                    disabled={submitLoading}
+                    className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-center font-display text-lg text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary disabled:opacity-50"
+                  />
+                </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider text-center">{room.away_team}</label>
-                <input
-                  type="number"
-                  placeholder="Placar"
-                  value={awayScore}
-                  onChange={(e) => setAwayScore(e.target.value)}
-                  disabled={submitLoading}
-                  className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-center font-display text-lg text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary disabled:opacity-50"
-                />
-              </div>
-            </div>
+            )}
 
-            <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Tipo de Chave Pix</label>
+            {/* 2. Futebol / Resultado Final */}
+            {sport === 'Futebol' && betType === 'resultado_final' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Palpite Vencedor</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('home')}
+                    className={`h-12 rounded-lg font-bold text-xs transition-all border ${
+                      selectedWinner === 'home'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    {room.home_team}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('draw')}
+                    className={`h-12 rounded-lg font-bold text-xs transition-all border ${
+                      selectedWinner === 'draw'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    Empate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('away')}
+                    className={`h-12 rounded-lg font-bold text-xs transition-all border ${
+                      selectedWinner === 'away'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    {room.away_team}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Tênis / Vencedor */}
+            {sport === 'Tênis' && betType === 'vencedor' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Vencedor</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('player_a')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedWinner === 'player_a'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-widest text-on-surface/40">Jogador 1</span>
+                    <span className="truncate max-w-full font-semibold">{room.event_data?.player_a || room.home_team}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('player_b')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedWinner === 'player_b'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-widest text-on-surface/40">Jogador 2</span>
+                    <span className="truncate max-w-full font-semibold">{room.event_data?.player_b || room.away_team}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 4. Tênis / Placar de Sets */}
+            {sport === 'Tênis' && betType === 'placar_sets' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Placar Exato de Sets</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {room.event_data?.best_of === 5 ? (
+                    <>
+                      {['3x0', '3x1', '3x2', '2x3', '1x3', '0x3'].map((score) => (
+                        <button
+                          key={score}
+                          type="button"
+                          onClick={() => setSelectedSetsScore(score)}
+                          className={`h-12 rounded-lg font-bold text-xs transition-all border ${
+                            selectedSetsScore === score
+                              ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                              : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                          }`}
+                        >
+                          {score} ({score.startsWith('3') ? (room.event_data?.player_a || room.home_team).split(' ')[0] : (room.event_data?.player_b || room.away_team).split(' ')[0]})
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {['2x0', '2x1', '1x2', '0x2'].map((score) => (
+                        <button
+                          key={score}
+                          type="button"
+                          onClick={() => setSelectedSetsScore(score)}
+                          className={`h-12 rounded-lg font-bold text-xs transition-all border ${
+                            selectedSetsScore === score
+                              ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                              : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                          }`}
+                        >
+                          {score} ({score.startsWith('2') ? (room.event_data?.player_a || room.home_team).split(' ')[0] : (room.event_data?.player_b || room.away_team).split(' ')[0]})
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 5. Basquete / Vencedor */}
+            {sport === 'Basquete' && betType === 'vencedor' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Vencedor</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('home')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedWinner === 'home'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-widest text-on-surface/40">Mandante</span>
+                    <span className="truncate max-w-full font-semibold">{room.home_team}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('away')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedWinner === 'away'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-widest text-on-surface/40">Visitante</span>
+                    <span className="truncate max-w-full font-semibold">{room.away_team}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 6. Basquete / Pontos Total */}
+            {sport === 'Basquete' && betType === 'pontos_total' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Pontos Totais (Linha: {room.event_data?.line || '210.5'})</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOverUnder('over')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedOverUnder === 'over'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="truncate max-w-full font-bold text-primary">Over (Mais de)</span>
+                    <span className="text-[10px] text-on-surface/60 font-semibold">+{room.event_data?.line || '210.5'} pontos</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOverUnder('under')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedOverUnder === 'under'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="truncate max-w-full font-bold text-primary">Under (Menos de)</span>
+                    <span className="text-[10px] text-on-surface/60 font-semibold">-{room.event_data?.line || '210.5'} pontos</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 7. Vôlei / Vencedor */}
+            {sport === 'Vôlei' && betType === 'vencedor' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Vencedor</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('home')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedWinner === 'home'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-widest text-on-surface/40">Mandante</span>
+                    <span className="truncate max-w-full font-semibold">{room.home_team}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWinner('away')}
+                    className={`h-14 rounded-lg font-bold text-xs transition-all border p-2 flex flex-col items-center justify-center ${
+                      selectedWinner === 'away'
+                        ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                        : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-widest text-on-surface/40">Visitante</span>
+                    <span className="truncate max-w-full font-semibold">{room.away_team}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 8. Vôlei / Placar de Sets */}
+            {sport === 'Vôlei' && betType === 'placar_sets' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Placar Exato de Sets (Melhor de 5)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['3x0', '3x1', '3x2', '2x3', '1x3', '0x3'].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => setSelectedSetsScore(score)}
+                      className={`h-12 rounded-lg font-bold text-xs transition-all border ${
+                        selectedSetsScore === score
+                          ? 'bg-primary/20 border-primary text-primary shadow-neon'
+                          : 'bg-surface-container-low border-outline-variant text-on-surface/75 hover:bg-outline-variant/10'
+                      }`}
+                    >
+                      {score} ({score.startsWith('3') ? room.home_team.split(' ')[0] : room.away_team.split(' ')[0]})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 9. Fórmula 1 / Vencedor Corrida */}
+            {sport === 'Fórmula 1' && betType === 'vencedor_corrida' && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Selecionar Vencedor da Corrida</label>
                 <select
-                  value={pixKeyType}
-                  onChange={(e) => {
-                    setPixKeyType(e.target.value);
-                    setBettorPixKey('');
-                    setEmailError(null);
-                  }}
+                  value={selectedF1Winner}
+                  onChange={(e) => setSelectedF1Winner(e.target.value)}
                   disabled={submitLoading}
                   className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface focus:outline-none focus:border-primary disabled:opacity-50"
                 >
-                  <option value="email">E‑mail</option>
-                  <option value="cpf">CPF</option>
-                  <option value="phone">Telefone</option>
+                  <option value="">-- Selecione o Piloto --</option>
+                  {(room.event_data?.competitors || []).map((driver: string, i: number) => (
+                    <option key={i} value={driver}>{driver}</option>
+                  ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1.5 mt-2">
-                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Sua Chave Pix (para receber prêmio)</label>
-                <input
-                  type="text"
-                  placeholder={pixKeyType === 'email' ? 'exemplo@dominio.com' : pixKeyType === 'cpf' ? '000.000.000-00' : '(00) 00000-0000'}
-                  value={bettorPixKey}
-                  onChange={(e) => {
-                    let val = e.target.value;
-                    if (pixKeyType === 'email') {
-                      const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-                      if (!emailRegex.test(val.trim())) {
-                        setEmailError('Por favor, informe um e‑mail válido.');
-                      } else {
-                        setEmailError(null);
-                      }
-                    } else if (pixKeyType === 'cpf') {
-                      // limit to 11 digits and format CPF xxx.xxx.xxx-xx
-                      const digits = val.replace(/\D/g, '').slice(0, 11);
-                      val = digits.replace(/(\d{3})(\d)/, '$1.$2')
-                                 .replace(/(\d{3})(\d)/, '$1.$2')
-                                 .replace(/(\d{3})(\d{1,2})$/,'$1-$2');
-                    } else if (pixKeyType === 'phone') {
-                      // format (xx) xxxxx-xxxx
-                      const digits = val.replace(/\D/g, '').slice(0, 11);
-                      val = digits.replace(/^([0-9]{2})([0-9]{5})([0-9]{4}).*/, '($1) $2-$3');
-                    }
-                    setBettorPixKey(val);
-                  }}
-                  disabled={submitLoading}
-                  className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary disabled:opacity-50"
-                />
-                {pixKeyType === 'email' && emailError && (
-                  <p className="text-xs text-red-500 mt-1">{emailError}</p>
-                )}
+            )}
+
+            {/* 10. Fórmula 1 / Pódio (Top 3) */}
+            {sport === 'Fórmula 1' && betType === 'podio' && (
+              <div className="flex flex-col gap-3">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Seu Pódio (Top 3)</label>
+                <div className="flex flex-col gap-2 bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-bold text-primary uppercase">1º Colocado (Vencedor)</span>
+                    <select
+                      value={podium1}
+                      onChange={(e) => setPodium1(e.target.value)}
+                      disabled={submitLoading}
+                      className="h-11 px-4 rounded-lg bg-surface-container border border-outline-variant text-on-surface text-xs focus:outline-none focus:border-primary"
+                    >
+                      <option value="">-- Selecione o 1º --</option>
+                      {(room.event_data?.competitors || [])
+                        .filter((d: string) => d !== podium2 && d !== podium3)
+                        .map((driver: string, i: number) => (
+                          <option key={i} value={driver}>{driver}</option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-bold text-on-surface/60 uppercase">2º Colocado</span>
+                    <select
+                      value={podium2}
+                      onChange={(e) => setPodium2(e.target.value)}
+                      disabled={submitLoading}
+                      className="h-11 px-4 rounded-lg bg-surface-container border border-outline-variant text-on-surface text-xs focus:outline-none focus:border-primary"
+                    >
+                      <option value="">-- Selecione o 2º --</option>
+                      {(room.event_data?.competitors || [])
+                        .filter((d: string) => d !== podium1 && d !== podium3)
+                        .map((driver: string, i: number) => (
+                          <option key={i} value={driver}>{driver}</option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-bold text-on-surface/60 uppercase">3º Colocado</span>
+                    <select
+                      value={podium3}
+                      onChange={(e) => setPodium3(e.target.value)}
+                      disabled={submitLoading}
+                      className="h-11 px-4 rounded-lg bg-surface-container border border-outline-variant text-on-surface text-xs focus:outline-none focus:border-primary"
+                    >
+                      <option value="">-- Selecione o 3º --</option>
+                      {(room.event_data?.competitors || [])
+                        .filter((d: string) => d !== podium1 && d !== podium2)
+                        .map((driver: string, i: number) => (
+                          <option key={i} value={driver}>{driver}</option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
               </div>
+            )}
+
+            <div className="flex flex-col gap-1.5 mt-2">
+              <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Tipo de Chave Pix</label>
+              <select
+                value={pixKeyType}
+                onChange={(e) => {
+                  setPixKeyType(e.target.value);
+                  setBettorPixKey('');
+                  setEmailError(null);
+                }}
+                disabled={submitLoading}
+                className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface focus:outline-none focus:border-primary disabled:opacity-50"
+              >
+                <option value="email">E‑mail</option>
+                <option value="cpf">CPF</option>
+                <option value="phone">Telefone</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5 mt-2">
+              <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Sua Chave Pix (para receber prêmio)</label>
+              <input
+                type="text"
+                placeholder={pixKeyType === 'email' ? 'exemplo@dominio.com' : pixKeyType === 'cpf' ? '000.000.000-00' : '(00) 00000-0000'}
+                value={bettorPixKey}
+                onChange={(e) => {
+                  let val = e.target.value;
+                  if (pixKeyType === 'email') {
+                    const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+                    if (!emailRegex.test(val.trim())) {
+                      setEmailError('Por favor, informe um e‑mail válido.');
+                    } else {
+                      setEmailError(null);
+                    }
+                  } else if (pixKeyType === 'cpf') {
+                    const digits = val.replace(/\D/g, '').slice(0, 11);
+                    val = digits.replace(/(\d{3})(\d)/, '$1.$2')
+                               .replace(/(\d{3})(\d)/, '$1.$2')
+                               .replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+                  } else if (pixKeyType === 'phone') {
+                    const digits = val.replace(/\D/g, '').slice(0, 11);
+                    val = digits.replace(/^([0-9]{2})([0-9]{5})([0-9]{4}).*/, '($1) $2-$3');
+                  }
+                  setBettorPixKey(val);
+                }}
+                disabled={submitLoading}
+                className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary disabled:opacity-50"
+              />
+              {pixKeyType === 'email' && emailError && (
+                <p className="text-xs text-red-500 mt-1">{emailError}</p>
+              )}
+            </div>
 
             <button
               type="submit"

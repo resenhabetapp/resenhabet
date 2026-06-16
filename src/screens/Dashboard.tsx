@@ -133,7 +133,12 @@ export default function Dashboard() {
                         {room.status === 'active' ? 'Ativa' : room.status === 'closed' ? 'Fechada' : 'Encerrada'}
                       </span>
                       <h4 className="font-display text-lg font-bold text-on-surface mt-2">{room.title}</h4>
-                      <p className="text-xs text-on-surface/60 mt-0.5">{room.home_team} × {room.away_team}</p>
+                      <p className="text-xs text-on-surface/60 mt-0.5 font-medium">
+                        {room.sport ? `[${room.sport}] ` : ''}
+                        {room.sport === 'Fórmula 1'
+                          ? (room.event_data?.gp_name || room.home_team)
+                          : `${room.home_team} × ${room.away_team}`}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] text-on-surface/40 uppercase tracking-wider">Valor da Aposta</p>
@@ -167,7 +172,7 @@ export default function Dashboard() {
         ) : (
           // ABA APOSTADOR
           guesses.length === 0 ? (
-            <div className="bg-surface-container-low p-8 rounded-xl border border-dashed border-outline-variant text-center flex flex-col gap-2 justify-center items-center py-12">
+            <div className="bg-surface-container-low p-8 rounded-xl border border-dashed border-outline-variant text-center flex flex-col gap-3 justify-center items-center py-12">
               <p className="text-sm text-on-surface/50">Você ainda não enviou nenhum palpite.</p>
               <p className="text-xs text-on-surface/40 max-w-[250px] mx-auto">
                 Acesse o link enviado por um amigo organizador para palpitar em uma resenha!
@@ -178,6 +183,53 @@ export default function Dashboard() {
               {guesses.map((guess) => {
                 const roomData = guess.rooms;
                 if (!roomData) return null;
+
+                const renderGuessDescription = () => {
+                  const sport = roomData.sport || 'Futebol';
+                  const betType = roomData.bet_type || 'placar_exato';
+                  const g = guess.guess_data || {};
+
+                  if (sport === 'Futebol') {
+                    if (betType === 'placar_exato') {
+                      return `${roomData.home_team} ${guess.home_score} × ${guess.away_score} ${roomData.away_team}`;
+                    } else {
+                      const winnerText = g.winner === 'home' ? roomData.home_team : g.winner === 'draw' ? 'Empate' : roomData.away_team;
+                      return `Vencedor: ${winnerText}`;
+                    }
+                  } else if (sport === 'Tênis') {
+                    const playerA = roomData.event_data?.player_a || roomData.home_team;
+                    const playerB = roomData.event_data?.player_b || roomData.away_team;
+                    if (betType === 'vencedor') {
+                      const winnerText = g.winner === 'player_a' ? playerA : playerB;
+                      return `Vencedor: ${winnerText}`;
+                    } else {
+                      return `Placar de Sets: ${g.sets_score}`;
+                    }
+                  } else if (sport === 'Basquete') {
+                    if (betType === 'vencedor') {
+                      const winnerText = g.winner === 'home' ? roomData.home_team : roomData.away_team;
+                      return `Vencedor: ${winnerText}`;
+                    } else {
+                      const line = roomData.event_data?.line || '210.5';
+                      return `Total: ${g.over_under === 'over' ? 'Mais de (Over)' : 'Menos de (Under)'} ${line}`;
+                    }
+                  } else if (sport === 'Vôlei') {
+                    if (betType === 'vencedor') {
+                      const winnerText = g.winner === 'home' ? roomData.home_team : roomData.away_team;
+                      return `Vencedor: ${winnerText}`;
+                    } else {
+                      return `Placar de Sets: ${g.sets_score}`;
+                    }
+                  } else if (sport === 'Fórmula 1') {
+                    if (betType === 'vencedor_corrida') {
+                      return `Vencedor: ${g.winner}`;
+                    } else {
+                      const pod = g.podium || [];
+                      return `Pódio: 1º ${pod[0] || '-'} | 2º ${pod[1] || '-'} | 3º ${pod[2] || '-'}`;
+                    }
+                  }
+                  return '';
+                };
 
                 return (
                   <div key={guess.id} className="bg-surface-container p-5 rounded-xl flex flex-col gap-3 border border-outline-variant/10">
@@ -191,8 +243,9 @@ export default function Dashboard() {
                         <h4 className="font-display text-lg font-bold text-on-surface mt-2">
                           {roomData.title}
                         </h4>
-                        <p className="text-xs text-on-surface/60 mt-0.5">
-                          {roomData.home_team} {guess.home_score} × {guess.away_score} {roomData.away_team}
+                        <p className="text-xs text-on-surface/60 mt-0.5 font-medium">
+                          {roomData.sport ? `[${roomData.sport}] ` : ''}
+                          {renderGuessDescription()}
                         </p>
                       </div>
                       <div className="text-right">
