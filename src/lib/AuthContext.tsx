@@ -18,16 +18,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const linkPendingGuess = async (userId: string) => {
+    const pendingGuessId = localStorage.getItem('pending_guess_id');
+    if (pendingGuessId) {
+      try {
+        const { error } = await supabase
+          .from('guesses')
+          .update({ user_id: userId })
+          .eq('id', pendingGuessId);
+        if (!error) {
+          localStorage.removeItem('pending_guess_id');
+          console.log('Successfully linked pending guess to user:', userId);
+        } else {
+          console.error('Error linking pending guess:', error);
+        }
+      } catch (err) {
+        console.error('Unexpected error linking pending guess:', err);
+      }
+    }
+  };
+
   useEffect(() => {
     // Fetch active session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        linkPendingGuess(currentUser.id);
+      }
       setLoading(false);
     });
 
     // Listen to auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        linkPendingGuess(currentUser.id);
+      }
       setLoading(false);
     });
 
