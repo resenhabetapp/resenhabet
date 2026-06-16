@@ -13,6 +13,9 @@ interface Room {
   pix_key: string;
   pix_key_type: string;
   status: string;
+  sport?: string;
+  bet_type?: string;
+  event_data?: any;
 }
 
 interface Guess {
@@ -20,12 +23,13 @@ interface Guess {
   room_id: string;
   bettor_name: string;
   bettor_pix_key: string;
-  home_score: number;
-  away_score: number;
+  home_score: number | null;
+  away_score: number | null;
   dynamic_cents: number;
   final_value: number;
   payment_status: string;
   created_at: string;
+  guess_data?: any;
   rooms: {
     id: string;
     title: string;
@@ -33,13 +37,16 @@ interface Guess {
     away_team: string;
     status: string;
     valor_da_cota: number;
+    sport?: string;
+    bet_type?: string;
+    event_data?: any;
   } | null;
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'organizer' | 'bettor'>('organizer');
-  const [rooms, setRooms] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [guesses, setGuesses] = useState<Guess[]>([]);
   const [loading, setLoading] = useState(true);
 

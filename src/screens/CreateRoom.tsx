@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import { SportSelector } from '../components/SportSelector';
 
 export default function CreateRoom() {
   const { user } = useAuth();
@@ -47,7 +48,7 @@ export default function CreateRoom() {
     if (!user) return;
     const fetchProfile = async () => {
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('profiles')
           .select('name')
           .eq('id', user.id)
@@ -267,19 +268,14 @@ export default function CreateRoom() {
       {/* Sport selection */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold text-on-surface/60 uppercase tracking-wider">Esporte</label>
-        <select
-          value={sport}
-          onChange={(e) => handleSportChange(e.target.value)}
-          disabled={loading}
-          className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface focus:outline-none focus:border-primary focus:border-2 disabled:opacity-50"
-        >
-          <option value="Futebol">Futebol</option>
-          <option value="Tênis">Tênis</option>
-          <option value="Basquete">Basquete</option>
-          <option value="Vôlei">Vôlei</option>
-          <option value="Fórmula 1">Fórmula 1</option>
-        </select>
+        <div className="flex justify-center py-2">
+          <SportSelector
+            selectedSport={sport}
+            onSelect={(selected) => handleSportChange(selected.id)}
+          />
+        </div>
       </div>
+
 
       {/* Tipo de Aposta selection */}
       <div className="flex flex-col gap-2">
