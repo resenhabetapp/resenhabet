@@ -8,8 +8,10 @@ interface Room {
   title: string;
   home_team: string;
   away_team: string;
-  min_quota_value: number;
+  valor_da_cota: number;
+  horario_limite: string | null; // ISO datetime
   pix_key: string;
+  pix_key_type: string;
   status: string;
 }
 
@@ -29,8 +31,16 @@ export default function BettorPage() {
   const [pixKeyType, setPixKeyType] = useState('email'); // email | cpf | phone
   const [emailError, setEmailError] = useState<string | null>(null);
 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
   // Result state
   const [successGuess, setSuccessGuess] = useState<any | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+    });
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -45,9 +55,9 @@ export default function BettorPage() {
 
         if (fetchError || !data) {
           setError('Resenha não encontrada ou link inválido.');
-        } else if (data.status !== 'active') {
+        } else if (data.status !== 'active' || (data.horario_limite && new Date() > new Date(data.horario_limite))) {
           setRoom(data);
-          setError('Esta resenha já está fechada para novos palpites.');
+          setError('Esta resenha está fechada para novos palpites (status ou prazo).');
         } else {
           setRoom(data);
         }
@@ -93,7 +103,20 @@ export default function BettorPage() {
       if (rpcError) {
         setError(rpcError.message);
       } else {
-        setSuccessGuess(data);
+        const guessData = Array.isArray(data) ? data[0] : data;
+        if (guessData?.id) {
+          localStorage.setItem('pending_guess_id', guessData.id);
+          // Se já estiver logado, vincula imediatamente
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            await supabase
+              .from('guesses')
+              .update({ user_id: session.user.id })
+              .eq('id', guessData.id);
+            localStorage.removeItem('pending_guess_id');
+          }
+        }
+        setSuccessGuess(guessData);
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao submeter palpite.');
@@ -178,6 +201,30 @@ export default function BettorPage() {
               </button>
             </div>
           </div>
+
+          {/* Card promocional para incentivar cadastro/download do app */}
+          {!isLoggedIn && (
+            <div className="bg-primary/10 border border-primary/20 p-5 rounded-xl text-center flex flex-col gap-3">
+              <h3 className="font-display font-bold text-primary text-sm">Acompanhe todos os seus palpites!</h3>
+              <p className="text-xs text-on-surface/85 leading-relaxed">
+                Faça o cadastro no nosso app para ver em tempo real os palpites dos seus amigos, acompanhar o placar e gerenciar todas as suas resenhas!
+              </p>
+              <div className="flex gap-2">
+                <Link
+                  to="/register"
+                  className="flex-1 h-10 bg-primary text-on-primary font-display font-bold text-xs rounded-lg flex items-center justify-center shadow-neon active:scale-95 transition-transform"
+                >
+                  Cadastrar e Acompanhar
+                </Link>
+                <Link
+                  to="/"
+                  className="flex-1 h-10 bg-surface-container-highest hover:bg-outline-variant-raw/20 text-on-surface font-display font-bold text-xs rounded-lg flex items-center justify-center border border-outline-variant/30 active:scale-95 transition-transform"
+                >
+                  Já tenho conta
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-3 text-center">
@@ -186,7 +233,11 @@ export default function BettorPage() {
             Após realizar o Pix, o organizador irá validar a sua cota no painel.
           </p>
           <button
-            onClick={() => setSuccessGuess(null)}
+            onClick={() => {
+              setSuccessGuess(null);
+              setHomeScore('');
+              setAwayScore('');
+            }}
             className="w-full h-12 bg-surface-container-highest hover:bg-outline-variant-raw/20 text-on-surface font-display font-bold rounded-lg transition-colors"
           >
             Fazer Outro Palpite
@@ -215,9 +266,9 @@ export default function BettorPage() {
           </div>
 
           <div className="bg-surface-container p-6 rounded-xl border border-outline-variant text-center">
-            <p className="text-xs text-on-surface/60 uppercase tracking-wider">Valor da Cota Base</p>
+            <p className="text-xs text-on-surface/60 uppercase tracking-wider">Valor da Aposta</p>
             <p className="font-display text-4xl font-bold text-primary mt-1">
-              R$ {Number(room.min_quota_value).toFixed(2).replace('.', ',')}
+              R$ {Number(room.valor_da_cota).toFixed(2).replace('.', ',')}
             </p>
             <p className="text-[10px] text-on-surface/40 mt-2">*Serão adicionados centavos dinâmicos de identificação</p>
           </div>

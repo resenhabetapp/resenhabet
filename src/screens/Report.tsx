@@ -8,8 +8,10 @@ interface Room {
   title: string;
   home_team: string;
   away_team: string;
-  min_quota_value: number;
+  valor_da_cota: number;
+  horario_limite: string | null; // ISO datetime
   pix_key: string;
+  pix_key_type: string;
   status: string;
   home_score: number | null;
   away_score: number | null;
@@ -98,7 +100,7 @@ export default function Report() {
         );
 
         const totalConfirmed = (guessesData || []).filter((g) => g.payment_status === 'confirmed').length;
-        const totalPool = totalConfirmed * roomData.min_quota_value;
+        const totalPool = totalConfirmed * roomData.valor_da_cota;
 
         if (correctGuesses.length > 0) {
           const prizePerWinner = Math.round((totalPool / correctGuesses.length) * 100) / 100;
@@ -220,7 +222,7 @@ export default function Report() {
 
   const confirmedGuesses = guesses.filter((g) => g.payment_status === 'confirmed');
   const totalConfirmed = confirmedGuesses.length;
-  const totalPool = totalConfirmed * (room?.min_quota_value ?? 0);
+  const totalPool = totalConfirmed * (room?.valor_da_cota ?? 0);
 
   const isSettled = room?.status === 'settled';
 
