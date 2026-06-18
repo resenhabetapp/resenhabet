@@ -18,12 +18,36 @@ export default function Profile() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [tokens, setTokens] = useState(0);
+  const [defaultPixKey, setDefaultPixKey] = useState('');
+  const [defaultPixKeyType, setDefaultPixKeyType] = useState('email');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingTx, setLoadingTx] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const formatPixKey = (val: string, type: string) => {
+    if (type === 'cpf') {
+      const digits = val.replace(/\D/g, '').slice(0, 11);
+      return digits.replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else if (type === 'phone') {
+      const digits = val.replace(/\D/g, '').slice(0, 11);
+      return digits.replace(/^([0-9]{2})([0-9]{5})([0-9]{4}).*/, '($1) $2-$3');
+    } else if (type === 'random') {
+      const clean = val.replace(/[^a-zA-Z0-9]/g, '').slice(0, 32);
+      const parts = [];
+      if (clean.length > 0) parts.push(clean.slice(0, 8));
+      if (clean.length > 8) parts.push(clean.slice(8, 12));
+      if (clean.length > 12) parts.push(clean.slice(12, 16));
+      if (clean.length > 16) parts.push(clean.slice(16, 20));
+      if (clean.length > 20) parts.push(clean.slice(20, 32));
+      return parts.join('-');
+    }
+    return val;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -33,7 +57,7 @@ export default function Profile() {
         // Fetch Profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('name, tokens')
+          .select('name, tokens, default_pix_key, default_pix_key_type')
           .eq('id', user.id)
           .single();
 
@@ -42,6 +66,10 @@ export default function Profile() {
         } else if (profile) {
           setName(profile.name);
           setTokens(profile.tokens);
+          const key = profile.default_pix_key || '';
+          const type = profile.default_pix_key_type || 'email';
+          setDefaultPixKeyType(type);
+          setDefaultPixKey(formatPixKey(key, type));
         }
         setLoadingProfile(false);
 
@@ -79,16 +107,53 @@ export default function Profile() {
       return;
     }
 
+    if (defaultPixKey.trim()) {
+      if (defaultPixKeyType === 'email') {
+        const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+        if (!emailRegex.test(defaultPixKey.trim())) {
+          setError('Informe um e-mail válido para a chave Pix.');
+          setUpdating(false);
+          return;
+        }
+      } else if (defaultPixKeyType === 'cpf') {
+        const digits = defaultPixKey.replace(/\D/g, '');
+        if (digits.length !== 11) {
+          setError('Informe um CPF válido (11 dígitos).');
+          setUpdating(false);
+          return;
+        }
+      } else if (defaultPixKeyType === 'phone') {
+        const digits = defaultPixKey.replace(/\D/g, '');
+        if (digits.length < 10) {
+          setError('Informe um telefone válido.');
+          setUpdating(false);
+          return;
+        }
+      } else if (defaultPixKeyType === 'random') {
+        const cleanKey = defaultPixKey.trim().replace(/[^a-zA-Z0-9]/g, '');
+        if (cleanKey.length !== 32) {
+          setError('A chave aleatória deve ter exatamente 32 caracteres alfanuméricos.');
+          setUpdating(false);
+          return;
+        }
+      }
+    }
+
     try {
+      const cleanPixKey = defaultPixKeyType === 'random' ? defaultPixKey.replace(/-/g, '').trim() : defaultPixKey.trim();
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ name: name.trim() })
+        .update({ 
+          name: name.trim(),
+          default_pix_key: cleanPixKey,
+          default_pix_key_type: defaultPixKeyType
+        })
         .eq('id', user.id);
 
       if (updateError) {
         setError(updateError.message);
       } else {
-        setSuccess('Nome atualizado com sucesso!');
+        setSuccess('Perfil atualizado com sucesso!');
       }
     } catch (err: any) {
       setError(err.message || 'Erro inesperado ao atualizar.');
@@ -163,6 +228,47 @@ export default function Profile() {
                   placeholder="Seu nome"
                   className="h-11 px-4 rounded-lg bg-surface-container-low border border-outline-variant/20 text-on-surface text-sm focus:outline-none focus:border-primary disabled:opacity-50"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Tipo de Chave Pix Padrão</label>
+                  <select
+                    value={defaultPixKeyType}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setDefaultPixKeyType(newType);
+                      setDefaultPixKey(formatPixKey(defaultPixKey, newType));
+                    }}
+                    disabled={loadingProfile || updating}
+                    className="h-11 px-4 rounded-lg bg-surface-container-low border border-outline-variant/20 text-on-surface text-sm focus:outline-none focus:border-primary disabled:opacity-50"
+                  >
+                    <option value="email">E-mail</option>
+                    <option value="cpf">CPF</option>
+                    <option value="phone">Telefone</option>
+                    <option value="random">Chave aleatória</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Chave Pix Padrão</label>
+                  <input
+                    type="text"
+                    value={defaultPixKey}
+                    onChange={(e) => setDefaultPixKey(formatPixKey(e.target.value, defaultPixKeyType))}
+                    disabled={loadingProfile || updating}
+                    placeholder={
+                      defaultPixKeyType === 'email'
+                        ? 'exemplo@dominio.com'
+                        : defaultPixKeyType === 'cpf'
+                        ? '000.000.000-00'
+                        : defaultPixKeyType === 'phone'
+                        ? '(00) 00000-0000'
+                        : '00000000-0000-0000-0000-000000000000'
+                    }
+                    className="h-11 px-4 rounded-lg bg-surface-container-low border border-outline-variant/20 text-on-surface text-sm focus:outline-none focus:border-primary disabled:opacity-50"
+                  />
+                </div>
               </div>
 
               <button

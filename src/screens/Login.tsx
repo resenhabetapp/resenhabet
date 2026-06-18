@@ -2,12 +2,33 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from '../components/ThemeToggle';
+import { FaGoogle } from 'react-icons/fa';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: oAuthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (oAuthError) {
+        setError(oAuthError.message);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erro ao tentar autenticar com o Google.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +141,23 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          <div className="relative flex items-center justify-center my-1">
+            <div className="border-t border-outline-variant w-full" />
+            <span className="absolute px-3 bg-surface-container-low text-[10px] text-on-surface/40 uppercase font-bold tracking-widest">
+              ou
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full h-12 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high font-display font-bold rounded-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            <FaGoogle className="w-4 h-4 text-[#4285F4]" />
+            Entrar com Google
+          </button>
         </div>
 
         <div className="text-center mt-8">
