@@ -65,3 +65,8 @@ CREATE POLICY "Users can insert their own transactions" ON token_transactions
 CREATE POLICY "Users can view their own transactions" ON token_transactions
   FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
+-- Add default pix key fields to profiles table
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_pix_key TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_pix_key_type TEXT DEFAULT 'email';
+
+
