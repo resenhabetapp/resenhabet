@@ -44,18 +44,46 @@ export default function CreateRoom() {
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch creator's name on mount
+  // Fetch creator's name and default PIX key on mount
   useEffect(() => {
     if (!user) return;
     const fetchProfile = async () => {
       try {
         const { data } = await supabase
           .from('profiles')
-          .select('name')
+          .select('name, default_pix_key, default_pix_key_type')
           .eq('id', user.id)
           .single();
-        if (data?.name) {
-          setProfileName(data.name);
+        if (data) {
+          if (data.name) {
+            setProfileName(data.name);
+          } else {
+            setProfileName(user.user_metadata?.name || user.email?.split('@')[0] || 'Organizador');
+          }
+          if (data.default_pix_key) {
+            let keyType = data.default_pix_key_type || 'email';
+            let keyVal = data.default_pix_key;
+            if (keyType === 'cpf') {
+              const digits = keyVal.replace(/\D/g, '').slice(0, 11);
+              keyVal = digits.replace(/(\d{3})(\d)/, '$1.$2')
+                .replace(/(\d{3})(\d)/, '$1.$2')
+                .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            } else if (keyType === 'phone') {
+              const digits = keyVal.replace(/\D/g, '').slice(0, 11);
+              keyVal = digits.replace(/^([0-9]{2})([0-9]{5})([0-9]{4}).*/, '($1) $2-$3');
+            } else if (keyType === 'random') {
+              const clean = keyVal.replace(/[^a-zA-Z0-9]/g, '').slice(0, 32);
+              const parts = [];
+              if (clean.length > 0) parts.push(clean.slice(0, 8));
+              if (clean.length > 8) parts.push(clean.slice(8, 12));
+              if (clean.length > 12) parts.push(clean.slice(12, 16));
+              if (clean.length > 16) parts.push(clean.slice(16, 20));
+              if (clean.length > 20) parts.push(clean.slice(20, 32));
+              keyVal = parts.join('-');
+            }
+            setPixKey(keyVal);
+            setPixKeyType(keyType);
+          }
         } else {
           setProfileName(user.user_metadata?.name || user.email?.split('@')[0] || 'Organizador');
         }
