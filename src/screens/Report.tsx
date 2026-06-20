@@ -21,6 +21,8 @@ interface Room {
   event_data?: any;
   regra_banca_comissionada?: boolean;
   comissao_porcentagem?: number;
+  reembolso_token?: boolean;
+  custo_do_token?: number;
 }
 
 interface Guess {
@@ -163,6 +165,15 @@ export default function Report() {
 
         if (correctGuesses.length > 0) {
           const mappedWinners: Winner[] = [];
+          
+          if (roomData.reembolso_token && roomData.custo_do_token && roomData.custo_do_token > 0) {
+            totalPool = totalPool - roomData.custo_do_token;
+            mappedWinners.push({
+              winner_name: 'Reembolso de Token',
+              winner_pix_key: roomData.pix_key,
+              prize_value: roomData.custo_do_token,
+            });
+          }
           
           if (roomData.regra_banca_comissionada && roomData.comissao_porcentagem && roomData.comissao_porcentagem > 0) {
             const commission = Math.round(totalPool * (roomData.comissao_porcentagem / 100) * 100) / 100;
@@ -377,8 +388,15 @@ export default function Report() {
 
   const isSettled = room?.status === 'settled';
 
-  const actualWinners = winners.filter((w) => w.winner_name !== 'Comissão do Organizador');
+  const actualWinners = winners.filter((w) => w.winner_name !== 'Comissão do Organizador' && w.winner_name !== 'Reembolso de Token');
   const prizePerWinner = actualWinners.length > 0 ? actualWinners[0].prize_value : 0;
+
+  const refundValue = (room?.reembolso_token && room?.custo_do_token) ? room.custo_do_token : 0;
+  const poolAfterRefund = totalPool - refundValue;
+  const commissionValue = (room?.regra_banca_comissionada && room?.comissao_porcentagem) 
+    ? Math.round(poolAfterRefund * (room.comissao_porcentagem / 100) * 100) / 100 
+    : 0;
+  const netPool = poolAfterRefund - commissionValue;
 
   return (
     <div className="px-4 py-6 flex flex-col gap-6">
@@ -451,21 +469,31 @@ export default function Report() {
                 <span className="font-display font-bold text-primary">R$ {totalPool.toFixed(2).replace('.', ',')}</span>
               </div>
               
+              {refundValue > 0 && (
+                <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10 text-xs">
+                  <span className="text-on-surface/50">Reembolso do Token</span>
+                  <span className="font-semibold text-on-surface/70 text-red-400">
+                    - R$ {refundValue.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              )}
+
               {room.regra_banca_comissionada && room.comissao_porcentagem !== undefined && room.comissao_porcentagem > 0 && (
-                <>
-                  <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10 text-xs">
-                    <span className="text-on-surface/50">Comissão da Banca ({room.comissao_porcentagem}%)</span>
-                    <span className="font-semibold text-on-surface/70">
-                      R$ {(totalPool * (room.comissao_porcentagem / 100)).toFixed(2).replace('.', ',')}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10 text-xs">
-                    <span className="text-on-surface/50">Pote Líquido para Rateio</span>
-                    <span className="font-semibold text-primary">
-                      R$ {(totalPool * (1 - room.comissao_porcentagem / 100)).toFixed(2).replace('.', ',')}
-                    </span>
-                  </div>
-                </>
+                <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10 text-xs">
+                  <span className="text-on-surface/50">Comissão da Banca ({room.comissao_porcentagem}%)</span>
+                  <span className="font-semibold text-on-surface/70 text-red-400">
+                    - R$ {commissionValue.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              )}
+
+              {(refundValue > 0 || room.regra_banca_comissionada) && (
+                <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10 text-xs">
+                  <span className="text-on-surface/50">Pote Líquido para Rateio</span>
+                  <span className="font-semibold text-primary">
+                    R$ {netPool.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
               )}
 
               <div className="flex justify-between items-center py-2 border-b border-outline-variant-raw/10">

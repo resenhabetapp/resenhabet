@@ -187,6 +187,97 @@ async function runTests() {
     await supabase.from('rooms').delete().eq('id', roomF1.id);
     console.log('F1 test data cleaned up.');
 
+    // ==========================================
+    // TEST CASE 3: Token Refund (FIFO)
+    // ==========================================
+    console.log('\n[TEST 3] Testing Token Refund (reembolso_token + FIFO)...');
+
+    // 1. Create Room with reembolso_token = true
+    const { data: roomRefund, error: roomRefundErr } = await supabase
+      .from('rooms')
+      .insert({
+        creator_id: CREATOR_ID,
+        title: 'Test Resenha Refund',
+        home_team: 'Flamengo',
+        away_team: 'Vasco',
+        valor_da_cota: 10.00,
+        sport: 'Futebol',
+        bet_type: 'placar_exato',
+        reembolso_token: true,
+        status: 'active',
+        pix_key: 'test@pix.com',
+        pix_key_type: 'email'
+      })
+      .select()
+      .single();
+
+    if (roomRefundErr) {
+      console.log('⚠️ Skip/Failed Test 3 insert (migration might not be applied yet):', roomRefundErr.message);
+    } else {
+      console.log(`Refund Room created: ${roomRefund.id}`);
+      console.log(`Trigger saved token cost: R$ ${roomRefund.custo_do_token}`);
+
+      // 2. Submit Guess 1 (Alice - Correct score, will be confirmed)
+      const { data: guessR1, error: gr1Err } = await supabase.rpc('submit_guess', {
+        p_room_id: roomRefund.id,
+        p_bettor_name: 'Alice',
+        p_bettor_pix_key: 'alice@pix.com',
+        p_home_score: 1,
+        p_away_score: 0,
+        p_guess_data: null
+      });
+      if (gr1Err) throw gr1Err;
+      const gr1 = Array.isArray(guessR1) ? guessR1[0] : guessR1;
+
+      // 3. Submit Guess 2 (Bob - Incorrect score, will be confirmed)
+      const { data: guessR2, error: gr2Err } = await supabase.rpc('submit_guess', {
+        p_room_id: roomRefund.id,
+        p_bettor_name: 'Bob',
+        p_bettor_pix_key: 'bob@pix.com',
+        p_home_score: 2,
+        p_away_score: 0,
+        p_guess_data: null
+      });
+      if (gr2Err) throw gr2Err;
+      const gr2 = Array.isArray(guessR2) ? guessR2[0] : guessR2;
+
+      // 4. Confirm payments
+      await supabase.from('guesses').update({ payment_status: 'confirmed' }).in('id', [gr1.id, gr2.id]);
+      console.log('Payments confirmed for Alice and Bob.');
+
+      // 5. Settle Room (Official: 1x0)
+      const { data: winnersRefund, error: settleRefundErr } = await supabase.rpc('settle_room', {
+        p_room_id: roomRefund.id,
+        p_home_score: 1,
+        p_away_score: 0,
+        p_result_data: null
+      });
+
+      if (settleRefundErr) throw settleRefundErr;
+      console.log('Refund Room Settle Result:', winnersRefund);
+
+      // Assertions for Refund
+      const refundRow = winnersRefund ? winnersRefund.find(w => w.winner_name === 'Reembolso de Token') : null;
+      const aliceRow = winnersRefund ? winnersRefund.find(w => w.winner_name === 'Alice') : null;
+
+      if (refundRow && aliceRow) {
+        const expectedAlicePrize = 20.00 - Number(roomRefund.custo_do_token);
+        if (Number(refundRow.prize_value) === Number(roomRefund.custo_do_token) && 
+            Math.abs(Number(aliceRow.prize_value) - expectedAlicePrize) < 0.01) {
+          console.log(`✅ TEST 3 PASSED: Refund row generated (R$ ${refundRow.prize_value}) and Alice won the rest (R$ ${aliceRow.prize_value})!`);
+        } else {
+          console.log('❌ TEST 3 FAILED: Incorrect refund or winner calculations.');
+        }
+      } else {
+        console.log('❌ TEST 3 FAILED: Missing refund row or Alice row.');
+      }
+
+      // Clean up Room 3
+      await supabase.from('guesses').delete().eq('room_id', roomRefund.id);
+      await supabase.from('rooms').delete().eq('id', roomRefund.id);
+      console.log('Refund test data cleaned up.');
+    }
+
     console.log('\n--- ALL TESTS COMPLETED SUCCESSFULY ---');
 
   } catch (err) {

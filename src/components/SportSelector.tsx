@@ -18,7 +18,7 @@ export const SPORTS: Sport[] = [
   { id: 'Fórmula 1', name: 'Fórmula 1', icon: FaFlagCheckered },
 ];
 
-const ITEM_WIDTH = 80;
+const ITEM_WIDTH = 100;
 
 interface SportSelectorProps {
   selectedSport?: string;
@@ -107,7 +107,7 @@ export const SportSelector: React.FC<SportSelectorProps> = ({ selectedSport, onS
             role="option"
             aria-selected={isActive}
           >
-            <Icon size={24} />
+            <Icon className="wheel-item-icon" />
             <span className="wheel-item-text">{sport.name}</span>
           </div>
         );
