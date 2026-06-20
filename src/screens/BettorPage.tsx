@@ -93,6 +93,12 @@ export default function BettorPage() {
       return;
     }
 
+    if (bettorName.trim().length > 60) {
+      setError('O nome deve ter no máximo 60 caracteres.');
+      setSubmitLoading(false);
+      return;
+    }
+
     let guessData: any = {};
     let homeVal: number | null = null;
     let awayVal: number | null = null;
@@ -437,6 +443,11 @@ export default function BettorPage() {
               {sport === 'Fórmula 1' ? `${room.event_data?.gp_name || room.home_team}` : `${room.home_team} × ${room.away_team}`}
             </h1>
             <p className="text-xs text-on-surface/40 mt-1 uppercase tracking-wider">Criador: {room.title}</p>
+            {room.horario_limite && (
+              <p className="text-xs text-red-500 font-bold mt-1 uppercase tracking-wider">
+                Limite para palpites: {new Date(room.horario_limite).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+              </p>
+            )}
           </div>
 
           <div className="bg-surface-container p-6 rounded-xl border border-outline-variant text-center">
@@ -462,6 +473,7 @@ export default function BettorPage() {
                 value={bettorName}
                 onChange={(e) => setBettorName(e.target.value)}
                 disabled={submitLoading}
+                maxLength={60}
                 className="h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary disabled:opacity-50"
               />
             </div>
