@@ -15,6 +15,7 @@ export default function CreateRoom() {
   const [regraEmpate, setRegraEmpate] = useState('acumular'); // acumular | banca
   const [regraBancaComissionada, setRegraBancaComissionada] = useState(false);
   const [comissaoPorcentagem, setComissaoPorcentagem] = useState(10); // default 10%
+  const [reembolsoToken, setReembolsoToken] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     homeTeam?: string;
     awayTeam?: string;
@@ -252,7 +253,7 @@ export default function CreateRoom() {
         home_team: finalHomeTeam,
         away_team: finalAwayTeam,
         valor_da_cota: quota,
-        horario_limite: deadline ? deadline : null,
+        horario_limite: deadline ? new Date(deadline).toISOString() : null,
         regra_empate: regraEmpate,
         regra_banca_comissionada: regraBancaComissionada,
         comissao_porcentagem: regraBancaComissionada ? comissaoPorcentagem : 0,
@@ -261,6 +262,7 @@ export default function CreateRoom() {
         sport: sport,
         bet_type: betType,
         event_data: eventData,
+        reembolso_token: reembolsoToken,
         status: 'active',
       });
 
@@ -690,6 +692,34 @@ export default function CreateRoom() {
               </select>
             </div>
           )}
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-on-surface">Reembolso do Token de Criação</span>
+              <span className="text-[11px] text-on-surface/50">Descontar o custo do token do pote e enviar para sua chave Pix</span>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => setReembolsoToken(!reembolsoToken)}
+              disabled={loading}
+              className={`w-14 h-8 border rounded-full relative p-1 flex items-center cursor-pointer select-none outline-none focus:outline-none transition-all ${
+                reembolsoToken 
+                  ? 'bg-primary/20 border-primary' 
+                  : 'bg-surface-container-highest border-outline-variant'
+              }`}
+              aria-label="Toggle Reembolso de Token"
+            >
+              {/* Sliding Knob */}
+              <div
+                className={`w-6 h-6 rounded-full bg-primary shadow transform transition-transform duration-300 ease-in-out ${
+                  reembolsoToken ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Sua Chave Pix para Recebimento with dynamic mask/validation */}
