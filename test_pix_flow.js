@@ -32,7 +32,7 @@ async function runPixTest() {
     console.log(`Current token balance: ${profileBefore.tokens ?? 0} tokens`);
 
     // 2. Call the create-pix Edge Function
-    console.log('\nInvoking create-pix Edge Function for package pkg_10 (10 Tokens - R$ 10,00)...');
+    console.log('\nInvoking create-pix Edge Function for package pkg_10 (10 Tokens - R$ 19,90)...');
     const { data, error: funcErr } = await supabase.functions.invoke('create-pix', {
       body: { packageId: 'pkg_10' }
     });
