@@ -7,9 +7,9 @@ const corsHeaders = {
 };
 
 const PACKAGES: Record<string, { tokens: number; price: number }> = {
-  pkg_10: { tokens: 10, price: 10.00 },
-  pkg_25: { tokens: 25, price: 22.00 },
-  pkg_50: { tokens: 50, price: 40.00 },
+  pkg_10: { tokens: 10, price: 19.90 },
+  pkg_25: { tokens: 25, price: 47.90 },
+  pkg_50: { tokens: 50, price: 87.90 },
 };
 
 async function getOrCreateAsaasCustomer(apiKey: string, apiUrl: string): Promise<string> {
