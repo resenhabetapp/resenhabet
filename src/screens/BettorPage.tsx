@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from '../components/ThemeToggle';
+import QRCode from 'qrcode';
+import html2canvas from 'html2canvas';
+import { generatePixCode, generateTxId, savePixPayment } from '../lib/pix';
+import ShareResenhaModal from '../components/ShareResenhaModal';
 
 interface Room {
   id: string;
@@ -26,6 +30,13 @@ export default function BettorPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Organizer details for Pix
+  const [organizerName, setOrganizerName] = useState('');
+  const [organizerCity, setOrganizerCity] = useState('');
+  const [pixCode, setPixCode] = useState('');
+  const [qrCodeBase64, setQrCodeBase64] = useState('');
+  const [generatingPix, setGeneratingPix] = useState(false);
+
   // Form states
   const [bettorName, setBettorName] = useState('');
   const [bettorPixKey, setBettorPixKey] = useState('');
@@ -46,6 +57,7 @@ export default function BettorPage() {
 
   // Result state
   const [successGuess, setSuccessGuess] = useState<any | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -71,6 +83,21 @@ export default function BettorPage() {
           setError('Esta resenha está fechada para novos palpites (status ou prazo).');
         } else {
           setRoom(data);
+
+          // Fetch organizer profile name and city
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('name, cidade')
+              .eq('id', data.creator_id)
+              .single();
+            if (profile) {
+              setOrganizerName(profile.name || 'ORGANIZADOR');
+              setOrganizerCity(profile.cidade || 'IVAIPORA');
+            }
+          } catch (profileErr) {
+            console.error('Erro ao buscar perfil do organizador:', profileErr);
+          }
         }
       } catch (err) {
         setError('Ocorreu um erro ao carregar os dados.');
@@ -81,6 +108,64 @@ export default function BettorPage() {
 
     fetchRoom();
   }, [id]);
+
+  const generateAndSavePixForBettor = async (guess: any) => {
+    if (!room) return;
+    setGeneratingPix(true);
+    try {
+      const txid = generateTxId(room.id, guess.dynamic_cents);
+      const code = generatePixCode(
+        room.pix_key,
+        organizerName || 'ORGANIZADOR',
+        organizerCity || 'IVAIPORA',
+        guess.final_value,
+        txid
+      );
+      setPixCode(code);
+
+      const qrDataUrl = await QRCode.toDataURL(code, {
+        width: 256,
+        margin: 1,
+      });
+      const base64Image = qrDataUrl.split(',')[1];
+      setQrCodeBase64(base64Image);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUserId = session?.user?.id || null;
+      await savePixPayment(txid, guess.final_value, currentUserId, room.id, 'entry_fee');
+    } catch (err) {
+      console.error('Erro ao gerar Pix para o apostador:', err);
+    } finally {
+      setGeneratingPix(false);
+    }
+  };
+
+  const handleDownloadCard = async () => {
+    const cardElement = document.getElementById('pix-card-bettor');
+    if (!cardElement) return;
+
+    try {
+      const canvas = await html2canvas(cardElement, {
+        useCORS: true,
+        backgroundColor: '#161e1a',
+        scale: 2,
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `pix_resenhabet_${room?.title || 'pagamento'}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Erro ao gerar imagem do Pix:', err);
+      alert('Não foi possível gerar a imagem para download.');
+    }
+  };
+
+  useEffect(() => {
+    if (successGuess) {
+      generateAndSavePixForBettor(successGuess);
+    }
+  }, [successGuess]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,49 +409,101 @@ export default function BettorPage() {
         <div className="flex flex-col gap-6">
           <div className="flex justify-between items-center mb-[-8px]">
             <span className="text-[10px] font-bold text-on-surface/40 uppercase tracking-widest">Resenha Bet</span>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              {room.status !== 'settled' && (
+                <button
+                  type="button"
+                  onClick={() => setShareModalOpen(true)}
+                  className="w-8 h-8 rounded-full bg-surface-container border border-outline-variant flex items-center justify-center text-on-surface hover:text-primary transition-all cursor-pointer"
+                  title="Compartilhar Sala"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 10.742l4.828-2.414m0 0a3 3 0 100-5.184 3 3 0 000 5.184zm-4.828 2.414a3 3 0 110-5.184 3 3 0 010 5.184zm4.828 2.414a3 3 0 100 5.184 3 3 0 000-5.184z" />
+                  </svg>
+                </button>
+              )}
+              <ThemeToggle />
+            </div>
           </div>
           
-          <div className="text-center py-4 bg-surface-container-low rounded-xl">
-            <span className="text-xs text-primary font-bold tracking-widest uppercase">Palpite Registrado!</span>
-            <h1 className="font-display text-2xl font-bold text-on-surface mt-2 px-2">
-              {room.sport === 'Fórmula 1' ? `${room.event_data?.gp_name || room.home_team}` : `${room.home_team} × ${room.away_team}`}
-            </h1>
-            <p className="text-sm text-on-surface/60 mt-1 font-semibold text-primary">{renderGuessSummary()}</p>
-          </div>
-
-          <div className="bg-surface-container p-6 rounded-xl border border-outline-variant text-center flex flex-col gap-3">
-            <p className="text-xs text-on-surface/60 uppercase tracking-wider">Valor Exato do Pix</p>
-            <p className="font-display text-5xl font-bold text-primary">
-              R$ {Number(successGuess.final_value).toFixed(2).replace('.', ',')}
-            </p>
-            <div className="bg-surface-container-highest p-3 rounded-lg border border-outline-variant-raw/10 text-[11px] text-on-surface/80 leading-relaxed text-left">
-              <span className="text-primary font-bold">Atenção:</span> Transfira **exatamente** o valor acima. 
-              Os centavos dinâmicos (<span className="text-primary">.{String(successGuess.dynamic_cents).padStart(2, '0')}</span>) 
-              servem para o criador identificar seu pagamento.
+          {/* Card de Pagamento Capturável pelo html2canvas */}
+          <div id="pix-card-bettor" className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/15 flex flex-col gap-5 shadow-xl">
+            <div className="text-center">
+              <span className="text-[10px] font-bold text-primary uppercase tracking-widest">CARTÃO DE PAGAMENTO</span>
+              <h2 className="font-display text-xl font-bold text-on-surface mt-1">
+                {room.sport === 'Fórmula 1' ? `${room.event_data?.gp_name || room.home_team}` : `${room.home_team} × ${room.away_team}`}
+              </h2>
+              <p className="text-xs text-primary font-semibold mt-1 uppercase tracking-wider">{renderGuessSummary()}</p>
+              <p className="text-[9px] text-on-surface/50 mt-1 uppercase tracking-wider">Criador: {organizerName}</p>
             </div>
+
+            <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10 text-center flex flex-col gap-1.5">
+              <span className="text-[10px] text-on-surface/50 uppercase tracking-wider">Valor Exato do Pix</span>
+              <p className="font-display text-4xl font-black text-primary">
+                R$ {Number(successGuess.final_value).toFixed(2).replace('.', ',')}
+              </p>
+              <p className="text-[9px] text-on-surface/60 leading-normal">
+                Transfira exatamente o valor acima. Os centavos dinâmicos (<span className="text-primary font-bold">.{String(successGuess.dynamic_cents).padStart(2, '0')}</span>) servem para o criador identificar seu pagamento.
+              </p>
+            </div>
+
+            {generatingPix ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
+                <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-on-surface/50">Gerando código Pix...</p>
+              </div>
+            ) : (
+              <>
+                {qrCodeBase64 ? (
+                  <div className="bg-white p-3 rounded-xl flex items-center justify-center mx-auto shadow-inner border border-slate-200">
+                    <img 
+                      src={`data:image/png;base64,${qrCodeBase64}`} 
+                      alt="QR Code Pix" 
+                      className="w-36 h-36 rounded-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-xs text-red-400">
+                    Não foi possível carregar o QR Code.
+                  </div>
+                )}
+
+                {pixCode && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-on-surface/50 uppercase tracking-wider">Chave Pix Copia e Cola</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={pixCode}
+                        className="h-9 px-3 rounded-lg bg-surface border border-outline-variant/20 text-on-surface/60 text-xs min-w-0 flex-1 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(pixCode);
+                          alert('Código Pix Copia e Cola copiado!');
+                        }}
+                        className="px-3 bg-surface-container-highest hover:bg-primary/10 text-on-surface text-xs font-bold rounded-lg border border-outline-variant/30 transition-all cursor-pointer"
+                      >
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Pix copy component */}
-          <div className="bg-surface-container p-5 rounded-xl flex flex-col gap-2">
-            <label className="text-xs font-bold text-on-surface/60 uppercase tracking-wider">Chave Pix do Organizador</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                readOnly
-                value={room.pix_key}
-                className="flex-1 h-12 px-4 rounded-lg bg-surface-container-low border border-outline-variant text-on-surface text-sm focus:outline-none"
-              />
+          {/* Botões de Ação */}
+          <div className="flex flex-col gap-2">
+            {pixCode && (
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(room.pix_key);
-                  alert('Chave Pix copiada!');
-                }}
-                className="px-4 h-12 bg-primary text-on-primary font-display font-bold rounded-lg shadow-neon active:scale-95 transition-transform"
+                onClick={handleDownloadCard}
+                className="w-full h-11 bg-primary text-on-primary font-display font-bold text-xs rounded-lg active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Copiar
+                Salvar Imagem do Pix (PNG)
               </button>
-            </div>
+            )}
           </div>
 
           {/* Card promocional para incentivar cadastro/download do app */}
@@ -431,7 +568,21 @@ export default function BettorPage() {
         <div className="flex flex-col gap-6">
           <div className="flex justify-between items-center mb-[-8px]">
             <span className="text-[10px] font-bold text-on-surface/40 uppercase tracking-widest">Resenha Bet</span>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              {room.status !== 'settled' && (
+                <button
+                  type="button"
+                  onClick={() => setShareModalOpen(true)}
+                  className="w-8 h-8 rounded-full bg-surface-container border border-outline-variant flex items-center justify-center text-on-surface hover:text-primary transition-all cursor-pointer"
+                  title="Compartilhar Sala"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 10.742l4.828-2.414m0 0a3 3 0 100-5.184 3 3 0 000 5.184zm-4.828 2.414a3 3 0 110-5.184 3 3 0 010 5.184zm4.828 2.414a3 3 0 100 5.184 3 3 0 000-5.184z" />
+                  </svg>
+                </button>
+              )}
+              <ThemeToggle />
+            </div>
           </div>
 
           <div className="text-center py-4 bg-surface-container-low rounded-xl">
@@ -895,6 +1046,14 @@ export default function BettorPage() {
             </button>
           </form>
         </div>
+      )}
+
+      {shareModalOpen && room && (
+        <ShareResenhaModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          room={room}
+        />
       )}
     </div>
   );

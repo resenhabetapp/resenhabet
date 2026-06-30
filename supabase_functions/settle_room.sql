@@ -138,11 +138,11 @@ BEGIN
         -- Retornar comissão do organizador como a primeira linha se aplicável
         IF v_commission > 0 THEN
             RETURN QUERY 
-            SELECT 'Comissão do Organizador'::TEXT, v_pix_key, v_commission;
+            SELECT 'Comissão do Organizador'::TEXT, v_pix_key::TEXT, v_commission::NUMERIC;
         END IF;
 
         RETURN QUERY 
-        SELECT bettor_name, bettor_pix_key, v_prize_per_winner
+        SELECT bettor_name::TEXT, bettor_pix_key::TEXT, v_prize_per_winner::NUMERIC
         FROM temp_winners;
     ELSE
         RETURN;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from '../components/ThemeToggle';
+import { sanitizeCity } from '../lib/pix';
 
 interface Transaction {
   id: string;
@@ -17,6 +18,7 @@ export default function Profile() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
+  const [cidade, setCidade] = useState('');
   const [tokens, setTokens] = useState(0);
   const [defaultPixKey, setDefaultPixKey] = useState('');
   const [defaultPixKeyType, setDefaultPixKeyType] = useState('email');
@@ -57,7 +59,7 @@ export default function Profile() {
         // Fetch Profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('name, tokens, default_pix_key, default_pix_key_type')
+          .select('name, tokens, default_pix_key, default_pix_key_type, cidade')
           .eq('id', user.id)
           .single();
 
@@ -65,6 +67,7 @@ export default function Profile() {
           console.error(profileError);
         } else if (profile) {
           setName(profile.name);
+          setCidade(profile.cidade || '');
           setTokens(profile.tokens);
           const key = profile.default_pix_key || '';
           const type = profile.default_pix_key_type || 'email';
@@ -101,8 +104,16 @@ export default function Profile() {
     setError(null);
     setSuccess(null);
 
+    const cleanCity = sanitizeCity(cidade);
+
     if (!name.trim()) {
       setError('O nome não pode ficar em branco.');
+      setUpdating(false);
+      return;
+    }
+
+    if (!cidade.trim()) {
+      setError('O campo cidade é obrigatório.');
       setUpdating(false);
       return;
     }
@@ -146,13 +157,15 @@ export default function Profile() {
         .update({ 
           name: name.trim(),
           default_pix_key: cleanPixKey,
-          default_pix_key_type: defaultPixKeyType
+          default_pix_key_type: defaultPixKeyType,
+          cidade: cleanCity
         })
         .eq('id', user.id);
 
       if (updateError) {
         setError(updateError.message);
       } else {
+        setCidade(cleanCity);
         setSuccess('Perfil atualizado com sucesso!');
       }
     } catch (err: any) {
@@ -226,6 +239,18 @@ export default function Profile() {
                   onChange={(e) => setName(e.target.value)}
                   disabled={loadingProfile || updating}
                   placeholder="Seu nome"
+                  className="h-11 px-4 rounded-lg bg-surface-container-low border border-outline-variant/20 text-on-surface text-sm focus:outline-none focus:border-primary disabled:opacity-50"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-on-surface/60 uppercase tracking-wider">Cidade</label>
+                <input
+                  type="text"
+                  value={cidade}
+                  onChange={(e) => setCidade(e.target.value)}
+                  disabled={loadingProfile || updating}
+                  placeholder="Sua cidade"
                   className="h-11 px-4 rounded-lg bg-surface-container-low border border-outline-variant/20 text-on-surface text-sm focus:outline-none focus:border-primary disabled:opacity-50"
                 />
               </div>
