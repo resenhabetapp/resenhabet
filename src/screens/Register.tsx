@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import ThemeToggle from '../components/ThemeToggle';
 import { FaGoogle } from 'react-icons/fa';
+import { sanitizeCity } from '../lib/pix';
 
 export default function Register() {
   const [name, setName] = useState('');
+  const [cidade, setCidade] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,9 @@ export default function Register() {
     setError(null);
     setSuccess(null);
 
-    if (!name.trim() || !email.trim() || !password.trim()) {
+    const cleanCity = sanitizeCity(cidade);
+
+    if (!name.trim() || !email.trim() || !password.trim() || !cidade.trim()) {
       setError('Por favor, preencha todos os campos.');
       setLoading(false);
       return;
@@ -58,19 +62,36 @@ export default function Register() {
         options: {
           data: {
             name: name.trim(),
+            cidade: cleanCity,
           },
         },
       });
 
       if (signUpError) {
         setError(signUpError.message);
-      } else if (data.user && !data.session) {
-        setSuccess('Cadastro realizado! Por favor, verifique seu e-mail para confirmar a conta.');
-        setName('');
-        setEmail('');
-        setPassword('');
-      } else {
-        setSuccess('Cadastro realizado! Entrando na arena...');
+      } else if (data.user) {
+        // Redundância para garantir atualização imediata no banco de dados profiles
+        try {
+          await supabase
+            .from('profiles')
+            .update({ 
+              name: name.trim(), 
+              cidade: cleanCity 
+            })
+            .eq('id', data.user.id);
+        } catch (dbErr) {
+          console.error('Erro de redundância ao salvar cidade:', dbErr);
+        }
+
+        if (!data.session) {
+          setSuccess('Cadastro realizado! Por favor, verifique seu e-mail para confirmar a conta.');
+          setName('');
+          setCidade('');
+          setEmail('');
+          setPassword('');
+        } else {
+          setSuccess('Cadastro realizado! Entrando na arena...');
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Ocorreu um erro ao realizar o cadastro.');
@@ -127,6 +148,19 @@ export default function Register() {
                 placeholder="Junior"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={loading}
+                className="h-12 px-4 rounded-lg bg-surface-container border border-outline-variant text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary focus:border-2 disabled:opacity-50"
+              />
+            </div>
+
+            {/* Cidade */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-on-surface/60 uppercase tracking-wider">Cidade</label>
+              <input
+                type="text"
+                placeholder="Ex: Ivaiporã"
+                value={cidade}
+                onChange={(e) => setCidade(e.target.value)}
                 disabled={loading}
                 className="h-12 px-4 rounded-lg bg-surface-container border border-outline-variant text-on-surface placeholder:text-on-surface/30 focus:outline-none focus:border-primary focus:border-2 disabled:opacity-50"
               />
