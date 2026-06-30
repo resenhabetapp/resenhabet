@@ -69,4 +69,64 @@ CREATE POLICY "Users can view their own transactions" ON token_transactions
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_pix_key TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_pix_key_type TEXT DEFAULT 'email';
 
+-- Add cidade column to public.profiles table
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS cidade TEXT DEFAULT 'IVAIPORA';
+UPDATE public.profiles SET cidade = 'IVAIPORA' WHERE cidade IS NULL;
+
+-- Update trigger handle_new_user to copy 'cidade' from metadata
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, tokens, default_pix_key, default_pix_key_type, cidade)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', ''),
+    0,
+    '',
+    'email',
+    COALESCE(
+      UPPER(
+        regexp_replace(
+          translate(
+            NEW.raw_user_meta_data->>'cidade',
+            'áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ',
+            'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC'
+          ),
+          '[^a-zA-Z0-9 ]',
+          '',
+          'g'
+        )
+      ),
+      'IVAIPORA'
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create pix_payments table to store generated pix payments logs
+CREATE TABLE IF NOT EXISTS public.pix_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  txid TEXT UNIQUE NOT NULL,
+  value NUMERIC(10,2) NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  room_id UUID REFERENCES public.rooms(id) ON DELETE CASCADE,
+  type TEXT NOT NULL, -- 'entry_fee' or 'payout'
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS and add policies
+ALTER TABLE public.pix_payments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Permitir inserção para usuários autenticados" 
+  ON public.pix_payments FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Permitir leitura para o próprio usuário ou criador da sala" 
+  ON public.pix_payments FOR SELECT TO authenticated USING (
+    auth.uid() = user_id OR EXISTS (
+      SELECT 1 FROM public.rooms WHERE id = room_id AND creator_id = auth.uid()
+    )
+  );
+
+
 

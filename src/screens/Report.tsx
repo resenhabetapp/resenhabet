@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import QRCode from 'qrcode';
+import html2canvas from 'html2canvas';
+import { generatePixCode, generateTxId, savePixPayment } from '../lib/pix';
+import ShareResenhaModal from '../components/ShareResenhaModal';
 
 interface Room {
   id: string;
@@ -41,6 +45,8 @@ interface Winner {
   winner_name: string;
   winner_pix_key: string;
   prize_value: number;
+  user_id?: string;
+  cidade?: string;
 }
 
 export default function Report() {
@@ -53,6 +59,15 @@ export default function Report() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pix Generator States
+  const [organizerCity, setOrganizerCity] = useState('IVAIPORA');
+  const [activePixWinner, setActivePixWinner] = useState<Winner | null>(null);
+  const [pixModalOpen, setPixModalOpen] = useState(false);
+  const [pixCode, setPixCode] = useState('');
+  const [qrCodeBase64, setQrCodeBase64] = useState('');
+  const [generatingPix, setGeneratingPix] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // Score inputs
   const [homeScoreInput, setHomeScoreInput] = useState('');
@@ -89,6 +104,20 @@ export default function Report() {
       }
 
       setRoom(roomData);
+
+      // Fetch creator's profile for city fallback
+      try {
+        const { data: creatorProfile } = await supabase
+          .from('profiles')
+          .select('cidade')
+          .eq('id', roomData.creator_id)
+          .single();
+        if (creatorProfile?.cidade) {
+          setOrganizerCity(creatorProfile.cidade);
+        }
+      } catch (err) {
+        console.error('Error fetching creator profile:', err);
+      }
 
       // 2. Fetch guesses
       const { data: guessesData, error: guessesError } = await supabase
@@ -160,6 +189,25 @@ export default function Report() {
           return false;
         });
 
+        // Fetch cities of users who correct-guessed
+        const userIds = (correctGuesses || []).map((g) => g.user_id).filter(Boolean);
+        const profilesMap: Record<string, string> = {};
+        if (userIds.length > 0) {
+          try {
+            const { data: profilesData } = await supabase
+              .from('profiles')
+              .select('id, cidade')
+              .in('id', userIds);
+            if (profilesData) {
+              profilesData.forEach((p) => {
+                profilesMap[p.id] = p.cidade || '';
+              });
+            }
+          } catch (err) {
+            console.error('Error fetching winners profiles:', err);
+          }
+        }
+
         const totalConfirmed = (guessesData || []).filter((g) => g.payment_status === 'confirmed').length;
         let totalPool = totalConfirmed * roomData.valor_da_cota;
 
@@ -191,6 +239,8 @@ export default function Report() {
               winner_name: g.bettor_name,
               winner_pix_key: g.bettor_pix_key,
               prize_value: prizePerWinner,
+              user_id: g.user_id,
+              cidade: g.user_id ? profilesMap[g.user_id] : undefined,
             });
           });
           setWinners(mappedWinners);
@@ -308,6 +358,62 @@ export default function Report() {
       } finally {
         setActionLoading(false);
       }
+    }
+  };
+
+  const handleOpenPixGenerator = async (winner: Winner, index: number) => {
+    if (!room) return;
+    setActivePixWinner(winner);
+    setPixModalOpen(true);
+    setGeneratingPix(true);
+    setPixCode('');
+    setQrCodeBase64('');
+    
+    try {
+      const txid = generateTxId(room.id, index + 1);
+      const winnerCity = winner.cidade || organizerCity || 'IVAIPORA';
+      const code = generatePixCode(
+        winner.winner_pix_key,
+        winner.winner_name,
+        winnerCity,
+        winner.prize_value,
+        txid
+      );
+      setPixCode(code);
+
+      const qrDataUrl = await QRCode.toDataURL(code, {
+        width: 256,
+        margin: 1,
+      });
+      const base64Image = qrDataUrl.split(',')[1];
+      setQrCodeBase64(base64Image);
+
+      await savePixPayment(txid, winner.prize_value, winner.user_id || null, room.id, 'payout');
+    } catch (err) {
+      console.error('Erro ao gerar Pix de rateio:', err);
+    } finally {
+      setGeneratingPix(false);
+    }
+  };
+
+  const handleDownloadCard = async () => {
+    const cardElement = document.getElementById('pix-card-payout');
+    if (!cardElement) return;
+
+    try {
+      const canvas = await html2canvas(cardElement, {
+        useCORS: true,
+        backgroundColor: '#161e1a',
+        scale: 2,
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `pix_rateio_${activePixWinner?.winner_name || 'ganhador'}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Erro ao gerar imagem do Pix:', err);
+      alert('Não foi possível gerar a imagem para download.');
     }
   };
 
@@ -458,6 +564,18 @@ export default function Report() {
                 </div>
               </div>
             )}
+
+            {!isSettled && (
+              <button
+                onClick={() => setShareModalOpen(true)}
+                className="mt-1 px-4 h-9 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg flex items-center justify-center text-xs font-bold transition-colors gap-1.5 cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 10.742l4.828-2.414m0 0a3 3 0 100-5.184 3 3 0 000 5.184zm-4.828 2.414a3 3 0 110-5.184 3 3 0 010 5.184zm4.828 2.414a3 3 0 100 5.184 3 3 0 000-5.184z" />
+                </svg>
+                Compartilhar Convite (QR Code)
+              </button>
+            )}
           </div>
 
           {/* Conciliation Data Summary */}
@@ -521,15 +639,28 @@ export default function Report() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {winners.map((winner, idx) => (
-                      <div key={idx} className="bg-surface-container p-4 rounded-xl flex justify-between items-center border border-outline-variant-raw/10">
-                        <div>
-                          <p className="font-display font-bold text-on-surface">{winner.winner_name}</p>
-                          <p className="text-xs text-on-surface/60 mt-0.5">PIX: {winner.winner_pix_key}</p>
+                    {winners.map((winner, idx) => {
+                      const isActualWinner = winner.winner_name !== 'Comissão do Organizador' && winner.winner_name !== 'Reembolso de Token';
+                      return (
+                        <div key={idx} className="bg-surface-container p-4 rounded-xl flex justify-between items-center border border-outline-variant-raw/10">
+                          <div>
+                            <p className="font-display font-bold text-on-surface">{winner.winner_name}</p>
+                            <p className="text-xs text-on-surface/60 mt-0.5">PIX: {winner.winner_pix_key}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-display font-bold text-primary">R$ {Number(winner.prize_value).toFixed(2).replace('.', ',')}</span>
+                            {isActualWinner && (
+                              <button
+                                onClick={() => handleOpenPixGenerator(winner, idx)}
+                                className="h-8 px-3 bg-primary text-on-primary font-display font-bold text-[10px] rounded-lg active:scale-95 transition-all shadow-md cursor-pointer"
+                              >
+                                Gerar Pix
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <span className="font-display font-bold text-primary">R$ {Number(winner.prize_value).toFixed(2).replace('.', ',')}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -702,6 +833,105 @@ export default function Report() {
             )}
           </div>
         </>
+      )}
+      {/* Modal Gerador de Pix de Rateio */}
+      {pixModalOpen && activePixWinner && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/20 max-w-sm w-full flex flex-col gap-5 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            {/* Fechar */}
+            <button
+              onClick={() => !generatingPix && setPixModalOpen(false)}
+              className="absolute top-4 right-4 text-on-surface/60 hover:text-on-surface transition-colors cursor-pointer"
+              disabled={generatingPix}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Card para capturar */}
+            <div id="pix-card-payout" className="bg-surface-container p-4 rounded-xl border border-outline-variant/10 flex flex-col gap-4">
+              <div className="text-center">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Rateio ResenhaBet</span>
+                <h3 className="font-display text-lg font-bold text-on-surface mt-1">
+                  Pagar Ganhador
+                </h3>
+                <p className="text-xs text-on-surface/60 mt-0.5">{activePixWinner.winner_name}</p>
+              </div>
+
+              <div className="bg-surface-container-highest p-4 rounded-xl border border-outline-variant/10 text-center flex flex-col gap-1">
+                <span className="text-[10px] text-on-surface/50 uppercase tracking-wider">Valor do Prêmio</span>
+                <p className="font-display text-3xl font-black text-primary">
+                  R$ {Number(activePixWinner.prize_value).toFixed(2).replace('.', ',')}
+                </p>
+              </div>
+
+              {generatingPix ? (
+                <div className="flex flex-col items-center justify-center py-6 gap-2">
+                  <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs text-on-surface/50">Gerando Pix...</p>
+                </div>
+              ) : (
+                <>
+                  {qrCodeBase64 ? (
+                    <div className="bg-white p-3 rounded-xl flex items-center justify-center mx-auto shadow-inner border border-slate-200">
+                      <img 
+                        src={`data:image/png;base64,${qrCodeBase64}`} 
+                        alt="QR Code Pix" 
+                        className="w-32 h-32 rounded-lg"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-xs text-red-400">
+                      Não foi possível carregar o QR Code.
+                    </div>
+                  )}
+
+                  {pixCode && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-on-surface/50 uppercase tracking-wider">Pix Copia e Cola</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={pixCode}
+                          className="h-8 px-2 rounded-lg bg-surface border border-outline-variant/20 text-on-surface/60 text-xs min-w-0 flex-1 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(pixCode);
+                            alert('Código Pix Copia e Cola copiado!');
+                          }}
+                          className="px-2 bg-surface-container-highest hover:bg-primary/10 text-on-surface text-xs font-bold rounded-lg border border-outline-variant/30 transition-all cursor-pointer"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Ações */}
+            {!generatingPix && pixCode && (
+              <button
+                onClick={handleDownloadCard}
+                className="w-full h-11 bg-primary text-on-primary font-display font-bold text-xs rounded-lg active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                Salvar Imagem do Pix (PNG)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {shareModalOpen && room && (
+        <ShareResenhaModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          room={room}
+        />
       )}
     </div>
   );

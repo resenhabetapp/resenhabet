@@ -213,18 +213,18 @@ BEGIN
         -- Retornar reembolso do token para o organizador como a primeira linha se ativo
         IF v_reembolso_token AND v_custo_do_token > 0.00 THEN
             RETURN QUERY 
-            SELECT 'Reembolso de Token'::TEXT, v_pix_key, v_custo_do_token;
+            SELECT 'Reembolso de Token'::TEXT, v_pix_key::TEXT, v_custo_do_token::NUMERIC;
         END IF;
 
         -- Retornar comissão do organizador se aplicável
         IF v_commission > 0 THEN
             RETURN QUERY 
-            SELECT 'Comissão do Organizador'::TEXT, v_pix_key, v_commission;
+            SELECT 'Comissão do Organizador'::TEXT, v_pix_key::TEXT, v_commission::NUMERIC;
         END IF;
 
         -- Retornar os vencedores oficiais
         RETURN QUERY 
-        SELECT bettor_name, bettor_pix_key, v_prize_per_winner
+        SELECT bettor_name::TEXT, bettor_pix_key::TEXT, v_prize_per_winner::NUMERIC
         FROM temp_winners;
     ELSE
         RETURN;

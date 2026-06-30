@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import ShareResenhaModal from '../components/ShareResenhaModal';
 
 interface Room {
   id: string;
@@ -49,6 +50,8 @@ export default function Dashboard() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [guesses, setGuesses] = useState<Guess[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedRoomToShare, setSelectedRoomToShare] = useState<Room | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -160,17 +163,18 @@ export default function Dashboard() {
                     >
                       Relatório &amp; Rateio
                     </Link>
-                    <button
-                      onClick={() => {
-                        const link = `${window.location.origin}/resenha/${room.id}`;
-                        navigator.clipboard.writeText(link);
-                        alert('Link de palpites copiado para o WhatsApp!');
-                      }}
-                      className="px-3 h-9 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg flex items-center justify-center text-xs font-bold transition-colors"
-                      title="Copiar Link de Convite"
-                    >
-                      Compartilhar
-                    </button>
+                    {room.status !== 'settled' && (
+                      <button
+                        onClick={() => {
+                          setSelectedRoomToShare(room);
+                          setShareModalOpen(true);
+                        }}
+                        className="px-3 h-9 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg flex items-center justify-center text-xs font-bold transition-colors"
+                        title="Copiar Link de Convite"
+                      >
+                        Compartilhar
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -291,6 +295,17 @@ export default function Dashboard() {
         >
           +
         </Link>
+      )}
+
+      {shareModalOpen && selectedRoomToShare && (
+        <ShareResenhaModal
+          isOpen={shareModalOpen}
+          onClose={() => {
+            setShareModalOpen(false);
+            setSelectedRoomToShare(null);
+          }}
+          room={selectedRoomToShare}
+        />
       )}
     </div>
   );
