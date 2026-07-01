@@ -44,8 +44,12 @@ BEGIN
         RAISE EXCEPTION 'O prazo limite para palpites nesta sala já expirou.';
     END IF;
 
-    -- Gerar centavos dinâmicos de 0 a 99
-    v_dynamic_cents := FLOOR(RANDOM() * 100);
+    -- Obter a contagem atual de palpites na sala para definir centavos de 1 a 99 sequencialmente
+    SELECT COUNT(*) INTO v_dynamic_cents 
+    FROM guesses 
+    WHERE guesses.room_id = p_room_id;
+    
+    v_dynamic_cents := (v_dynamic_cents % 99) + 1;
     
     -- Calcular o valor final (cota + centavos)
     v_final_value := v_cota + (v_dynamic_cents::numeric / 100.0);

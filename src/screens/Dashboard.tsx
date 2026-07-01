@@ -163,6 +163,19 @@ export default function Dashboard() {
                     >
                       Relatório &amp; Rateio
                     </Link>
+                    <Link
+                      to={`/resenha/${room.id}/live`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 h-9 bg-blue-600/10 hover:bg-blue-600/25 text-blue-600 rounded-lg flex items-center justify-center text-xs font-bold transition-colors gap-1.5 border border-blue-600/20 dark:bg-[#ffdf00]/10 dark:hover:bg-[#ffdf00]/25 dark:text-[#ffdf00] dark:border-[#ffdf00]/20"
+                      title="Painel ao Vivo (TV)"
+                    >
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                      </span>
+                      TV
+                    </Link>
                     {room.status !== 'settled' && (
                       <button
                         onClick={() => {
