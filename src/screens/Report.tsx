@@ -565,17 +565,32 @@ export default function Report() {
               </div>
             )}
 
-            {!isSettled && (
-              <button
-                onClick={() => setShareModalOpen(true)}
-                className="mt-1 px-4 h-9 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg flex items-center justify-center text-xs font-bold transition-colors gap-1.5 cursor-pointer"
+            <div className="flex gap-2.5 flex-wrap justify-center mt-2">
+              {!isSettled && (
+                <button
+                  onClick={() => setShareModalOpen(true)}
+                  className="px-4 h-9 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg flex items-center justify-center text-xs font-bold transition-colors gap-1.5 cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 10.742l4.828-2.414m0 0a3 3 0 100-5.184 3 3 0 000 5.184zm-4.828 2.414a3 3 0 110-5.184 3 3 0 010 5.184zm4.828 2.414a3 3 0 100 5.184 3 3 0 000-5.184z" />
+                  </svg>
+                  Compartilhar Convite (QR Code)
+                </button>
+              )}
+              
+              <Link
+                to={`/resenha/${room.id}/live`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 h-9 bg-blue-600/10 hover:bg-blue-600/25 text-blue-600 rounded-lg flex items-center justify-center text-xs font-bold transition-colors gap-1.5 border border-blue-600/20 active:scale-95 shadow-sm dark:bg-[#ffdf00]/10 dark:hover:bg-[#ffdf00]/25 dark:text-[#ffdf00] dark:border-[#ffdf00]/20"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 10.742l4.828-2.414m0 0a3 3 0 100-5.184 3 3 0 000 5.184zm-4.828 2.414a3 3 0 110-5.184 3 3 0 010 5.184zm4.828 2.414a3 3 0 100 5.184 3 3 0 000-5.184z" />
-                </svg>
-                Compartilhar Convite (QR Code)
-              </button>
-            )}
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                </span>
+                Painel ao Vivo (TV)
+              </Link>
+            </div>
           </div>
 
           {/* Conciliation Data Summary */}
