@@ -5,6 +5,7 @@ import ForgotPassword from './screens/ForgotPassword';
 import Dashboard from './screens/Dashboard';
 import CreateRoom from './screens/CreateRoom';
 import BettorPage from './screens/BettorPage';
+import LiveDashboard from './screens/LiveDashboard';
 import Report from './screens/Report';
 import BuyTokens from './screens/BuyTokens';
 import Profile from './screens/Profile';
@@ -33,6 +34,7 @@ function App() {
             </Route>
             
             <Route path="/resenha/:id" element={<BettorPage />} />
+            <Route path="/resenha/:id/live" element={<LiveDashboard />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>
